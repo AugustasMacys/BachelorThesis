@@ -1,6 +1,5 @@
 import argparse
 import cv2
-import glob
 import ntpath
 import os
 
