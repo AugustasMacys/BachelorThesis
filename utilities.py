@@ -1,9 +1,13 @@
 import json
 import os
+import pandas as pd
 import shutil
 
 ROOT_DIR = os.path.dirname(os.path.abspath(__file__))
 METADATA_FILENAME = "metadata.json"
+
+FACES_DIRECTORY = os.path.join(ROOT_DIR, "extracted_images")
+SAMPLE_VIDEO_DIRECTORY = os.path.join(ROOT_DIR, "video_examples")
 
 
 def get_specific_video_names(folder, number=20, label='FAKE'):
@@ -34,6 +38,17 @@ def write_list_to_file(list, dest, label):
     with open(path, 'w') as f:
         for name in list:
             f.write("%s\n" % name)
+
+
+def read_txt_as_list(filename):
+    with open(filename) as f:
+        lines = f.read().splitlines()
+
+    return lines
+
+
+def list_to_dataframe(video_names, column_name="videoname"):
+    return pd.DataFrame(video_names, columns=[column_name])
 
 
 def get_all_videos_from_folder(folder):
