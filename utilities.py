@@ -36,6 +36,16 @@ def write_list_to_file(list, dest, label):
             f.write("%s\n" % name)
 
 
+def get_all_videos_from_folder(folder):
+    video_files = []
+    for file in os.listdir(folder):
+        if file.endswith(".mp4"):
+            video_files.append(os.path.join(folder, file))
+
+    return video_files
+
+
+
 # destination_folder = r"D:\deepfakes\video_examples"
 # folder00 = r"D:\deepfakes\data\train\train_00\dfdc_train_part_0"
 # fakes = get_specific_video_names(folder00)
