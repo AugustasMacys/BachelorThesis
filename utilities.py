@@ -65,11 +65,11 @@ def list_to_dataframe(video_names, column_name="videoname"):
     return pd.DataFrame(video_names, columns=[column_name])
 
 
-def get_all_videos_from_folder(folder):
+def get_all_files_with_extension_from_folder(folder, extension):
     video_files = []
     for file in os.listdir(folder):
-        if file.endswith(".mp4"):
-            video_files.append(os.path.join(folder, file))
+        if file.endswith(extension):
+            video_files.append(file)
 
     return video_files
 

@@ -4,7 +4,7 @@ import numpy as np
 
 from training.trainUtilities import Unnormalize
 from utilities import get_original_videos_of_fake_videos,\
-    list_to_dataframe, read_txt_as_list
+    list_to_dataframe, read_txt_as_list, get_all_files_with_extension_from_folder
 from utilities import FACES_DIRECTORY, ROOT_DIR, SAMPLE_VIDEO_DIRECTORY
 
 IMAGE_SIZE = 224
@@ -38,6 +38,8 @@ fake_dataframe["original"] = fake_dataframe["videoname"].map(fake_to_original)
 # print(fake_to_original)
 # print(fake_dataframe)
 
+extracted_faces_names = get_all_files_with_extension_from_folder(FACES_DIRECTORY, ".png")
+print(extracted_faces_names)
 
 unnormalize_transform = Unnormalize(MEAN, STD)
 
