@@ -1,8 +1,9 @@
 import os
 import numpy as np
 
-from utilities import list_to_dataframe, read_txt_as_list
-from utilities import FACES_DIRECTORY, SAMPLE_VIDEO_DIRECTORY
+from utilities import get_original_videos_of_fake_videos,\
+    list_to_dataframe, read_txt_as_list
+from utilities import FACES_DIRECTORY, ROOT_DIR, SAMPLE_VIDEO_DIRECTORY
 
 IMAGE_SIZE = 224
 BATCH_SIZE = 64
@@ -24,7 +25,12 @@ fake_dataframe["label"] = 1
 
 real_dataframe["original"] = np.nan
 
-print(real_dataframe)
+metadata_folder = os.path.join(ROOT_DIR, "data", "train", "train_00", "dfdc_train_part_0")
+fake_to_original = get_original_videos_of_fake_videos(fake_videos, metadata_folder)
+
+fake_dataframe["original"] = fake_dataframe["videoname"].map(fake_to_original)
+
+print(fake_to_original)
 print(fake_dataframe)
 
 

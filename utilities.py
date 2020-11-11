@@ -26,6 +26,20 @@ def get_specific_video_names(folder, number=20, label='FAKE'):
     return names
 
 
+def get_original_videos_of_fake_videos(fake_videos, metadata_folder):
+    metadata_path = os.path.join(metadata_folder, METADATA_FILENAME)
+    videos_to_fakes = dict()
+    with open(metadata_path) as f:
+        data = json.load(f)
+        for video in fake_videos:
+            if data[video]["original"]:
+                videos_to_fakes[video] = data[video]["original"]
+
+    return videos_to_fakes
+
+
+
+
 def copy_specific_videos(src_folder, src_names, destination_folder):
     for name in src_names:
         path = os.path.join(src_folder, name)
