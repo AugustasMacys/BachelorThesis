@@ -1,12 +1,17 @@
 import os
 import numpy as np
 
+
+from training.trainUtilities import Unnormalize
 from utilities import get_original_videos_of_fake_videos,\
     list_to_dataframe, read_txt_as_list
 from utilities import FACES_DIRECTORY, ROOT_DIR, SAMPLE_VIDEO_DIRECTORY
 
 IMAGE_SIZE = 224
 BATCH_SIZE = 64
+
+MEAN = [0.485, 0.456, 0.406]
+STD = [0.229, 0.224, 0.225]
 
 FAKE = "FAKES.TXT"
 FAKE_VIDEOS = os.path.join(SAMPLE_VIDEO_DIRECTORY, FAKE)
@@ -30,7 +35,9 @@ fake_to_original = get_original_videos_of_fake_videos(fake_videos, metadata_fold
 
 fake_dataframe["original"] = fake_dataframe["videoname"].map(fake_to_original)
 
-print(fake_to_original)
-print(fake_dataframe)
+# print(fake_to_original)
+# print(fake_dataframe)
 
+
+unnormalize_transform = Unnormalize(MEAN, STD)
 
