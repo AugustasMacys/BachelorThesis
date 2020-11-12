@@ -39,7 +39,23 @@ fake_dataframe["original"] = fake_dataframe["videoname"].map(fake_to_original)
 # print(fake_dataframe)
 
 extracted_faces_names = get_all_files_with_extension_from_folder(FACES_DIRECTORY, ".png")
-print(extracted_faces_names)
+fake_videos = [x[:-4] for x in fake_videos]
+
+result_fake = []
+for video in fake_videos:
+    result_fake.append([i for i in extracted_faces_names if i.startswith(video)])
+
+flat_result = [item for sublist in result_fake for item in sublist]
+
+flat_real = set(extracted_faces_names) - set(flat_result)
+
+real_dataframe = list_to_dataframe(flat_real, "image_name")
+fake_dataframe = list_to_dataframe(flat_result, "image_name")
+real_dataframe["label"] = 0
+fake_dataframe["label"] = 1
+
+print(real_dataframe)
+print(fake_dataframe)
 
 unnormalize_transform = Unnormalize(MEAN, STD)
 

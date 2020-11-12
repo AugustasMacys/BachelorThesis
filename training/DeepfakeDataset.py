@@ -2,6 +2,8 @@ import pandas as pd
 
 from torch.utils.data import Dataset
 
+from training.trainUtilities import load_image
+
 
 class DeepfakeDataset(Dataset):
     """Deepfake dataset"""
@@ -21,7 +23,11 @@ class DeepfakeDataset(Dataset):
 
     def __getitem__(self, index):
         row = self.df.iloc[index]
-        filename =
+        image_name = row["image_name"]
+        label = row["label"]
+        img = load_image(image_name, self.images_dir)
+
+        return img, label
 
     def __len__(self):
         len(self.df)

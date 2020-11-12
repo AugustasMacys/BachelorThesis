@@ -38,8 +38,6 @@ def get_original_videos_of_fake_videos(fake_videos, metadata_folder):
     return videos_to_fakes
 
 
-
-
 def copy_specific_videos(src_folder, src_names, destination_folder):
     for name in src_names:
         path = os.path.join(src_folder, name)
