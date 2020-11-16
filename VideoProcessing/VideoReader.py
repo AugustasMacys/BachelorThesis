@@ -51,7 +51,7 @@ def norm_crop(img, landmark, arcface_reference, image_size=112):
     return warped
 
 
-def video_frame_extractor(video_name):
+def video_frame_extractor(video_name, folder):
     capturator = cv2.VideoCapture(video_name)
     frames_number = int(capturator.get(cv2.CAP_PROP_FRAME_COUNT))
 
@@ -74,7 +74,12 @@ def video_frame_extractor(video_name):
             transformed_image = norm_crop(frame, face_landmark, ARCFACE_REFERENCE, image_size=224)
 
             identifier = ntpath.basename(video_name)[:-4] + '_' + str(i)
-            save_string = os.path.join(ROOT_DIR, "extracted_images", identifier) + ".png"
+            if folder == "fake":
+                save_string = os.path.join(ROOT_DIR, "extracted_fake_images", identifier) + ".png"
+            else:
+                save_string = os.path.join(ROOT_DIR, "extracted_real_images", identifier) + ".png"
+
+            print(save_string)
             cv2.imwrite(save_string, transformed_image)
 
     capturator.release()
@@ -83,16 +88,23 @@ def video_frame_extractor(video_name):
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument("--videoFolder")
+    parser.add_argument("--real")
     args = parser.parse_args()
+
+    folder = "fake"
+    if args.real:
+        folder = "real"
 
     full_video_path = os.path.join(ROOT_DIR, args.videoFolder)
     video_filenames = [os.path.join(full_video_path, path) for path in
                        os.listdir(full_video_path) if path.endswith('.mp4')]
+
+    print(video_filenames)
 
     model = insightface.model_zoo.get_model('retinaface_r50_v1')
     model.prepare(ctx_id=0, nms=0.4)
 
     with tqdm(total=len(video_filenames)) as bar:
         for video in video_filenames:
-            video_frame_extractor(video)
+            video_frame_extractor(video, folder)
             bar.update()

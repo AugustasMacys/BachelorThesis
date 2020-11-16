@@ -1,5 +1,6 @@
 import os
 import numpy as np
+import pandas as pd
 
 import matplotlib.pyplot as plt
 
@@ -66,7 +67,20 @@ print(fake_dataframe)
 unnormalize_transform = Unnormalize(MEAN, STD)
 
 
-dataset = DeepfakeDataset(FACES_DIRECTORY, real_dataframe, fake_dataframe, sample_size=400)
-plt.imshow(unnormalize_transform(dataset[0][0]).permute(1, 2, 0))
-plt.show()
+# dataset = DeepfakeDataset(FACES_DIRECTORY, real_dataframe, fake_dataframe, sample_size=400)
+# plt.imshow(unnormalize_transform(dataset[0][0]).permute(1, 2, 0))
+# plt.show()
+
+
+def train_validation_split(metadata_dataframe, frac=0.2):
+
+    real_rows = metadata_dataframe[metadata_dataframe["label"] == "REAL"]
+    real_dataframe = real_rows.sample(frac=frac, random_state=5)
+    fake_dataframe = metadata_dataframe[metadata_dataframe["original"].isin(real_dataframe["videoname"])]
+    validation_dataframe = pd.concat([real_dataframe, fake_dataframe])
+
+    # The training split is the remaining videos.
+    train_dataframe = metadata_dataframe.loc[~metadata_dataframe.index.isin(validation_dataframe.index)]
+
+    return train_dataframe, validation_dataframe
 

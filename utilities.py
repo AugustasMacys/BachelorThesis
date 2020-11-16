@@ -12,7 +12,7 @@ SAMPLE_VIDEO_DIRECTORY = os.path.join(ROOT_DIR, "video_examples")
 
 def get_specific_video_names(folder, number=20, label='FAKE'):
     path = os.path.join(folder, METADATA_FILENAME)
-    print(path)
+    # print(path)
     names = []
     with open(path) as f:
         data = json.load(f)
@@ -24,6 +24,22 @@ def get_specific_video_names(folder, number=20, label='FAKE'):
                 return names
 
     return names
+
+
+def get_fake_videos_with_corresponding_original_videos(folder, number=50):
+    path = os.path.join(folder, METADATA_FILENAME)
+    fake_list = list()
+    original_list = list()
+    with open(path) as f:
+        data = json.load(f)
+        for id in data:
+            if data[id]["label"] == "FAKE":
+                fake_list.append(id)
+                if data[id]["original"]:
+                    original_list.append(data[id]["original"])
+
+            if len(fake_list) == number:
+                return fake_list, original_list
 
 
 def get_original_videos_of_fake_videos(fake_videos, metadata_folder):
@@ -73,13 +89,22 @@ def get_all_files_with_extension_from_folder(folder, extension):
 
 
 
-# destination_folder = r"D:\deepfakes\video_examples"
-# folder00 = r"D:\deepfakes\data\train\train_00\dfdc_train_part_0"
+# real_destination_folder = r"D:\deepfakes\real_video_examples"
+# fake_destination_folder = r"D:\deepfakes\fake_video_examples"
+folder00 = r"D:\deepfakes\data\train\train_00\dfdc_train_part_0"
+
+fake, real = get_fake_videos_with_corresponding_original_videos(folder00)
+
+fake_dataframe = pd.DataFrame(list(zip(fake, real)), columns=["video_name", "original"])
+fake_dataframe["label"] = 1
+
+print(fake_dataframe)
+
 # fakes = get_specific_video_names(folder00)
 # real = get_specific_video_names(folder00, label="REAL")
 #
 # write_list_to_file(fakes, destination_folder, "FAKES.txt")
 # write_list_to_file(real, destination_folder, "REAL.txt")
 #
-# copy_specific_videos(folder00, fakes, destination_folder)
-# copy_specific_videos(folder00, real, destination_folder)
+# copy_specific_videos(folder00, fake, fake_destination_folder)
+# copy_specific_videos(folder00, real, real_destination_folder)
