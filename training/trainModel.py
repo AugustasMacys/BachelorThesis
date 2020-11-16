@@ -1,11 +1,16 @@
 import os
 import numpy as np
 
+import matplotlib.pyplot as plt
 
 from training.trainUtilities import Unnormalize
 from utilities import get_original_videos_of_fake_videos,\
     list_to_dataframe, read_txt_as_list, get_all_files_with_extension_from_folder
 from utilities import FACES_DIRECTORY, ROOT_DIR, SAMPLE_VIDEO_DIRECTORY
+
+from torchvision.transforms import Normalize
+
+from DeepfakeDataset import DeepfakeDataset
 
 IMAGE_SIZE = 224
 BATCH_SIZE = 64
@@ -57,5 +62,11 @@ fake_dataframe["label"] = 1
 print(real_dataframe)
 print(fake_dataframe)
 
+# normalize_transform = Normalize(MEAN, STD)
 unnormalize_transform = Unnormalize(MEAN, STD)
+
+
+dataset = DeepfakeDataset(FACES_DIRECTORY, real_dataframe, fake_dataframe, sample_size=400)
+plt.imshow(unnormalize_transform(dataset[0][0]).permute(1, 2, 0))
+plt.show()
 

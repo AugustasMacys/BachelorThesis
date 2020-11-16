@@ -4,6 +4,10 @@ import torch
 
 from torchvision.transforms import Normalize
 
+MEAN = [0.485, 0.456, 0.406]
+STD = [0.229, 0.224, 0.225]
+
+normalize_transform = Normalize(MEAN, STD)
 
 class Unnormalize:
     def __init__(self, mean, std):
@@ -24,6 +28,6 @@ def load_image(filename, crops_dir, image_size=224, resize=False):
         img = cv2.resize(img, (image_size, image_size))
 
     img = torch.tensor(img).permute((2, 0, 1)).float().div(255)
-    img = Normalize(img)
+    img = normalize_transform(img)
 
     return img

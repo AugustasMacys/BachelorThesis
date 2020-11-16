@@ -4,6 +4,8 @@ from torch.utils.data import Dataset
 
 from training.trainUtilities import load_image
 
+from utilities import FACES_DIRECTORY
+
 
 class DeepfakeDataset(Dataset):
     """Deepfake dataset"""
@@ -25,7 +27,7 @@ class DeepfakeDataset(Dataset):
         row = self.df.iloc[index]
         image_name = row["image_name"]
         label = row["label"]
-        img = load_image(image_name, self.images_dir)
+        img = load_image(image_name, self.images_dir, self.image_size)
 
         return img, label
 
