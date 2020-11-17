@@ -13,7 +13,6 @@ DATAFRAMES_DIRECTORY = os.path.join(ROOT_DIR, "dataframes")
 
 def get_specific_video_names(folder, number=20, label='FAKE'):
     path = os.path.join(folder, METADATA_FILENAME)
-    # print(path)
     names = []
     with open(path) as f:
         data = json.load(f)
