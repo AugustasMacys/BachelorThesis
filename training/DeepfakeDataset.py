@@ -10,7 +10,7 @@ from utilities import FACES_DIRECTORY
 class DeepfakeDataset(Dataset):
     """Deepfake dataset"""
 
-    def __init__(self, images_dir, real_videos_dataframe, fake_videos_dataframe,
+    def __init__(self, images_dir, frames_dataframe,
                  sample_size=20, image_size=224, seed=1):
         self.images_dir = images_dir
         self.image_size = image_size
