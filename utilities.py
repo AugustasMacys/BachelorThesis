@@ -8,6 +8,7 @@ METADATA_FILENAME = "metadata.json"
 
 FACES_DIRECTORY = os.path.join(ROOT_DIR, "extracted_images")
 SAMPLE_VIDEO_DIRECTORY = os.path.join(ROOT_DIR, "video_examples")
+DATAFRAMES_DIRECTORY = os.path.join(ROOT_DIR, "dataframes")
 
 
 def get_specific_video_names(folder, number=20, label='FAKE'):
@@ -108,3 +109,25 @@ print(fake_dataframe)
 #
 # copy_specific_videos(folder00, fake, fake_destination_folder)
 # copy_specific_videos(folder00, real, real_destination_folder)
+
+# print([x for x in range(0, 300, 10)])
+
+identifiers = [x for x in range(0, 300, 10)]
+fake_frame_names = []
+real_frame_names = []
+for name in fake_dataframe.video_name:
+    fake_frame_names.append([name[:-4] + '_' + str(identifier) for identifier in identifiers])
+
+for name in fake_dataframe.original:
+    real_frame_names.append([name[:-4] + '_' + str(identifier) for identifier in identifiers])
+
+fake_frame_names = [item for sublist in fake_frame_names for item in sublist]
+real_frame_names = [item for sublist in real_frame_names for item in sublist]
+
+frame_dataframe = pd.DataFrame(list(zip(fake_frame_names, real_frame_names)),
+                              columns=["frame_name", "original_frame"])
+
+frame_dataframe.to_csv(os.path.join(DATAFRAMES_DIRECTORY, "frames_dataframe.csv"))
+
+
+
