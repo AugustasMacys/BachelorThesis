@@ -18,6 +18,8 @@ class DeepfakeDataset(Dataset):
                  sample_size=None, image_size=224):
 
         self.image_size = image_size
+        if 'index' in frames_dataframe:
+            del frames_dataframe['index']
 
         mixed_dataframe = pd.DataFrame(frames_dataframe.stack().reset_index(drop=True),
                                        columns=["picture_name"])
@@ -29,7 +31,12 @@ class DeepfakeDataset(Dataset):
 
     def __getitem__(self, index):
         row = self.df.iloc[index]
+        # print(row)
+        # print(row["picture_name"])
+        # print(index)
         image_name = row["picture_name"] + ".png"
+
+        # print(image_name)
         if index % 2 == 0:
             label = 1
             image_dir = FAKE_FACES_DIRECTORY
