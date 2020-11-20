@@ -10,6 +10,7 @@ FACES_DIRECTORY = os.path.join(ROOT_DIR, "extracted_images")
 SAMPLE_VIDEO_DIRECTORY = os.path.join(ROOT_DIR, "video_examples")
 DATAFRAMES_DIRECTORY = os.path.join(ROOT_DIR, "dataframes")
 NOISY_STUDENT_DIRECTORY = os.path.join(ROOT_DIR, "noisy_student_weights")
+MODELS_DIECTORY = os.path.join(ROOT_DIR, "trained_models")
 
 
 def get_specific_video_names(folder, number=20, label='FAKE'):
