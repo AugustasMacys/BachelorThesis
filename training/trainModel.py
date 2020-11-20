@@ -86,8 +86,9 @@ def train_model(model, criterion, optimizer, scheduler, epochs):
                 with torch.set_grad_enabled(phase == 'train'):
                     outputs = model(inputs)
                     y_pred = outputs.squeeze()
-                    # print(type(labels))
-                    # print(type(y_pred))
+                    #
+                    # labels = labels.unsqueeze(1)
+                    # labels = labels.float()
                     labels = labels.type_as(y_pred)
 
                     loss = criterion(y_pred, labels)
@@ -140,16 +141,21 @@ if __name__ == '__main__':
 
     model = EfficientNet.from_pretrained('efficientnet-b0', weights_path=NOISY_STUDENT_WEIGHTS_FILENAME,
                                          num_classes=1)
-    # for param in model.parameters():
-    #     param.requires_grad = False
 
-    model.fc = nn.Linear(1280, 1)
+    # freeze parameters so that gradients are not computed
+    for name, param in model.named_parameters():
+        param.requires_grad = False
+
+    model._fc = nn.Linear(1280, 1)
 
     model = model.to(gpu)
+    for name, param in model.named_parameters():
+        print(name, param.requires_grad)
     criterion = F.binary_cross_entropy_with_logits
 
-    # Observe that all parameters are being optimized
-    optimizer_ft = optim.SGD(model.parameters(), lr=0.001, momentum=0.9)
+    # Observe that only parameters of final layer are being optimized as
+    # opposed to before.
+    optimizer_ft = optim.SGD(model._fc.parameters(), lr=0.001, momentum=0.9)
 
     # Decay LR by a factor of 0.1 every 7 epochs
     exp_lr_scheduler = lr_scheduler.StepLR(optimizer_ft, step_size=7, gamma=0.1)
