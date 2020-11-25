@@ -158,5 +158,3 @@ if __name__ == '__main__':
     exp_lr_scheduler = lr_scheduler.StepLR(optimizer_ft, step_size=7, gamma=0.1)
 
     model = train_model(model, criterion, optimizer_ft, exp_lr_scheduler, 25)
-
-
