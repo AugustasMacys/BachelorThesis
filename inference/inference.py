@@ -26,7 +26,7 @@ class InferenceLoader:
     def __init__(self, video_dir, face_detector,
                  transform=None, batch_size=15, face_limit=15):
         self.video_dir = video_dir
-        self.test_videos = sorted(f for f in os.listdir(video_dir) if f.endswith(".mp4"))
+        self.test_videos = sorted(f for f in os.listdir(video_dir) if f.endswith(".mp4"))[:5]
 
         self.transform = transform
         self.face_detector = face_detector
@@ -53,6 +53,7 @@ class InferenceLoader:
                     if not success:
                         continue
 
+                    print(file_name)
                     bounding_box, landmarks = face_detector.detect(frame, threshold=0.5, scale=1.0)
                     if bounding_box.shape[0] == 0:
                         continue
@@ -91,12 +92,12 @@ class InferenceLoader:
             if len(batch_buf) == self.batch_size:
                 yield torch.stack(batch_buf)
 
-            batch_count += 1
-            batch_buf.clear()
+                batch_count += 1
+                batch_buf.clear()
 
-            if batch_count % 10 == 0:
-                elapsed = 1000 * (time.time() - t0)
-                print("T: %.2f ms / batch" % (elapsed / batch_count))
+                if batch_count % 15 == 0:
+                    elapsed = 1000 * (time.time() - t0)
+                    print("T: %.2f ms / batch" % (elapsed / batch_count))
 
         if len(batch_buf) > 0:
             yield torch.stack(batch_buf)
@@ -110,7 +111,7 @@ class InferenceLoader:
             self.record[file_name].append(score)
 
         for file_name in sorted(accessed):
-            self.score[file_name] = np.mean(self.record[file_name])
+            self.score[file_name] = torch.mean(torch.stack(self.record[file_name]), dim=0)
             print("[%s] %.6f" % (file_name, self.score[file_name]))
 
 
@@ -133,9 +134,8 @@ if __name__ == '__main__':
         with torch.no_grad():
             y_pred = model(batch)
             y_pred = torch.sigmoid(y_pred.squeeze())
-            out = y_pred.mean().item()
-            loader.feedback(out)
+            loader.feedback(y_pred)
 
     with open(scores_path, "w") as f:
         for key in loader.score.keys():
-            f.write("%s,%s\n" % (key, loader.score[key]))
+            f.write("%s,%s\n" % (key, loader.score[key].item()))
