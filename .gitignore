@@ -143,3 +143,14 @@ data/
 aws/
 cookies/
 papers/
+tmp/
+validation_faces/
+retina_model/
+noisy_student_weights/
+real_video_examples/
+lenFakes.txt
+lenReal.txt
+extracted_fake_images/
+extracted_real_images/
+fake_video_examples/
+initial_training_faces/

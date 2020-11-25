@@ -3,10 +3,9 @@ import pandas as pd
 
 import torch
 import time
-import copy
 
 from training.trainUtilities import Unnormalize
-from utilities import DATAFRAMES_DIRECTORY, NOISY_STUDENT_DIRECTORY, MODELS_DIECTORY,\
+from utilities import NOISY_STUDENT_DIRECTORY, MODELS_DIECTORY,\
     VALIDATION_DATAFRAME_PATH, TRAINING_DATAFRAME_PATH
 
 from torch.utils.data import DataLoader
@@ -32,19 +31,7 @@ unnormalize_transform = Unnormalize(MEAN, STD)
 model_save_path = os.path.join(MODELS_DIECTORY, "lowest_loss_model.pth")
 
 
-
-# def train_validation_split(metadata_dataframe, frac=0.2):
-#
-#     n = int(len(metadata_dataframe) * frac)
-#     validation_dataframe = metadata_dataframe.iloc[0:n]
-#     train_dataframe = metadata_dataframe.iloc[n:].reset_index()
-#
-#     return train_dataframe, validation_dataframe
-
-
 def create_data_loaders(batch_size, num_workers):
-    # train_df, val_df = train_validation_split(frames_dataframe)
-
     train_df = pd.read_csv(TRAINING_DATAFRAME_PATH)
     val_df = pd.read_csv(VALIDATION_DATAFRAME_PATH)
 
@@ -131,16 +118,15 @@ def train_model(model, criterion, optimizer, scheduler, epochs):
     print('Loss: {:4f}'.format(mimimum_loss))
 
     # load best model weights
-    # model.load_state_dict(best_model_wts)
     model.load_state_dict(torch.load(model_save_path))
     return model
 
 
 if __name__ == '__main__':
-    # frames_dataframe = pd.read_csv(os.path.join(DATAFRAMES_DIRECTORY, "frames_dataframe.csv"))
     gpu = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
     print(gpu)
     train_loader, validation_loader = create_data_loaders(BATCH_SIZE, 6)
+
     dataloaders = {
         "train": train_loader,
         "val": validation_loader
@@ -156,13 +142,10 @@ if __name__ == '__main__':
 
     model = EfficientNet.from_pretrained('efficientnet-b0', weights_path=NOISY_STUDENT_WEIGHTS_FILENAME,
                                          num_classes=1)
-
     # freeze parameters so that gradients are not computed
     for name, param in model.named_parameters():
         param.requires_grad = False
-
     model._fc = nn.Linear(1280, 1)
-
     model = model.to(gpu)
 
     criterion = F.binary_cross_entropy_with_logits
@@ -175,18 +158,5 @@ if __name__ == '__main__':
     exp_lr_scheduler = lr_scheduler.StepLR(optimizer_ft, step_size=7, gamma=0.1)
 
     model = train_model(model, criterion, optimizer_ft, exp_lr_scheduler, 25)
-    # model_save_path = os.path.join(MODELS_DIECTORY, "lowest_loss_model.pth")
-    # torch.save(model.state_dict(), model_save_path)
-
-
-    # print([k for k, v in net.named_parameters() if v.requires_grad])
-    # for name, params in net.named_parameters():
-    #     print(name)
-
-    # out = net(torch.zeros((10, 3, IMAGE_SIZE, IMAGE_SIZE)).to(gpu))
-    # X, y = next(iter(validation_loader))
-    # plt.imshow(unnormalize_transform(X[0]).permute(1, 2, 0))
-    # plt.show()
-    # print(y[0])
 
 

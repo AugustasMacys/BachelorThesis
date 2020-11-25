@@ -1,5 +1,4 @@
 import cv2
-import os
 import torch
 
 from torchvision.transforms import Normalize
@@ -8,6 +7,7 @@ MEAN = [0.485, 0.456, 0.406]
 STD = [0.229, 0.224, 0.225]
 
 normalize_transform = Normalize(MEAN, STD)
+
 
 class Unnormalize:
     def __init__(self, mean, std):
@@ -21,7 +21,6 @@ class Unnormalize:
 
 
 def load_image(filename, image_size=224, resize=False):
-    # img = cv2.imread(os.path.join(crops_dir, filename))
     img = cv2.imread(filename)
     img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
 

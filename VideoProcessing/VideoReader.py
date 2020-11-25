@@ -6,13 +6,12 @@ import numpy as np
 import pandas as pd
 import os
 
-from mxnet import MXNetError
 from tqdm import tqdm
 
 from skimage.transform import SimilarityTransform
 from insightface.utils.face_align import arcface_src
 
-from utilities import VALIDATION_DIRECTORY, VALIDATION_FACES_DIRECTORY, TRAIN_FACES_DIRECTORY, DATAFRAMES_DIRECTORY
+from utilities import TRAIN_FACES_DIRECTORY, DATAFRAMES_DIRECTORY
 
 FACE_SIZE = 224
 INSIGHTFACE_SIZE = 112
@@ -75,12 +74,7 @@ def video_frame_extractor(video_name, folder):
             transformed_image = norm_crop(frame, face_landmark, ARCFACE_REFERENCE, image_size=224)
 
             identifier = ntpath.basename(video_name)[:-4] + '_' + str(i)
-            # if folder == "fake":
-            #     save_string = os.path.join(ROOT_DIR, "extracted_fake_images", identifier) + ".png"
-            # else:
-            #     save_string = os.path.join(ROOT_DIR, "extracted_real_images", identifier) + ".png"
             save_string = os.path.join(folder, identifier) + ".png"
-            # print(save_string)
             cv2.imwrite(save_string, transformed_image)
 
     capturator.release()
@@ -89,17 +83,7 @@ def video_frame_extractor(video_name, folder):
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument("--videoFolder")
-    # parser.add_argument("--real")
     args = parser.parse_args()
-
-    # folder = "fake"
-    # if args.real:
-    #     folder = "real"
-
-    # full_video_path = os.path.join(ROOT_DIR, args.videoFolder)
-    # full_video_path = VALIDATION_DIRECTORY
-    # video_filenames = [os.path.join(full_video_path, path) for path in
-    #                    os.listdir(full_video_path) if path.endswith('.mp4') and int(ntpath.basename(path)[:-4]) > 7841]
 
     training_dataframe_path = os.path.join(DATAFRAMES_DIRECTORY, "training_dataframe.csv")
     video_filenames = pd.read_csv(training_dataframe_path)["video_name"]

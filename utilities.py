@@ -59,6 +59,7 @@ def get_fake_videos_with_corresponding_original_videos(folder, original_limit=12
 
     return fake_list, original_set
 
+
 def get_original_videos_of_fake_videos(fake_videos, metadata_folder):
     metadata_path = os.path.join(metadata_folder, METADATA_FILENAME)
     videos_to_fakes = dict()
@@ -106,17 +107,9 @@ def get_all_files_with_extension_from_folder(folder, extension):
 
 
 if __name__ == '__main__':
-    # print(os.path.join(TRAIN_DIRECTORY, '*', '*') + r'\\')
     directories_to_traverse = glob(os.path.join(TRAIN_DIRECTORY, '*', '*') + r'\\')
-    # directory_contents = os.listdir(TRAIN_DIRECTORY)
-    # directories_to_traverse = []
     all_fake_videos = []
     all_real_videos = []
-    # for item in directory_contents:
-    #     if os.path.isdir(os.path.join(TRAIN_DIRECTORY, item)):
-    #         directories_to_traverse.append(os.path.join(TRAIN_DIRECTORY, item, ))
-    #
-    # print(directories_to_traverse)
     for folder in directories_to_traverse:
         current_folder_fake_video_names, current_folder_real_video_names = get_fake_videos_with_corresponding_original_videos(folder)
         all_fake_videos.append(current_folder_fake_video_names)
@@ -144,53 +137,3 @@ if __name__ == '__main__':
 
     final_dataframe = pd.concat([fake_dataframe, real_dataframe])
     final_dataframe.to_csv(os.path.join(DATAFRAMES_DIRECTORY, "training_dataframe.csv"), index=False)
-
-
-
-
-
-
-
-# real_destination_folder = r"D:\deepfakes\real_video_examples"
-# fake_destination_folder = r"D:\deepfakes\fake_video_examples"
-
-
-# folder00 = r"D:\deepfakes\data\train\train_00\dfdc_train_part_0"
-#
-# fake, real = get_fake_videos_with_corresponding_original_videos(folder00)
-#
-# fake_dataframe = pd.DataFrame(list(zip(fake, real)), columns=["video_name", "original"])
-# fake_dataframe["label"] = 1
-#
-# print(fake_dataframe)
-
-# fakes = get_specific_video_names(folder00)
-# real = get_specific_video_names(folder00, label="REAL")
-#
-# write_list_to_file(fakes, destination_folder, "FAKES.txt")
-# write_list_to_file(real, destination_folder, "REAL.txt")
-#
-# copy_specific_videos(folder00, fake, fake_destination_folder)
-# copy_specific_videos(folder00, real, real_destination_folder)
-
-# print([x for x in range(0, 300, 10)])
-
-# identifiers = [x for x in range(0, 300, 10)]
-# fake_frame_names = []
-# real_frame_names = []
-# for name in fake_dataframe.video_name:
-#     fake_frame_names.append([name[:-4] + '_' + str(identifier) for identifier in identifiers])
-#
-# for name in fake_dataframe.original:
-#     real_frame_names.append([name[:-4] + '_' + str(identifier) for identifier in identifiers])
-#
-# fake_frame_names = [item for sublist in fake_frame_names for item in sublist]
-# real_frame_names = [item for sublist in real_frame_names for item in sublist]
-#
-# frame_dataframe = pd.DataFrame(list(zip(fake_frame_names, real_frame_names)),
-#                               columns=["frame_name", "original_frame"])
-#
-# frame_dataframe.to_csv(os.path.join(DATAFRAMES_DIRECTORY, "frames_dataframe.csv"), index=False)
-
-
-
