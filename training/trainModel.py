@@ -6,7 +6,8 @@ import time
 import copy
 
 from training.trainUtilities import Unnormalize
-from utilities import DATAFRAMES_DIRECTORY, NOISY_STUDENT_DIRECTORY, MODELS_DIECTORY
+from utilities import DATAFRAMES_DIRECTORY, NOISY_STUDENT_DIRECTORY, MODELS_DIECTORY,\
+    VALIDATION_DATAFRAME_PATH, TRAINING_DATAFRAME_PATH
 
 from torch.utils.data import DataLoader
 from torch.nn import functional as F
@@ -19,7 +20,7 @@ from efficientnet_pytorch import EfficientNet
 from DeepfakeDataset import DeepfakeDataset
 
 IMAGE_SIZE = 224
-BATCH_SIZE = 16
+BATCH_SIZE = 64
 
 MEAN = [0.485, 0.456, 0.406]
 STD = [0.229, 0.224, 0.225]
@@ -28,18 +29,24 @@ NOISY_STUDENT_WEIGHTS_FILENAME = os.path.join(NOISY_STUDENT_DIRECTORY, "noisy-st
 
 unnormalize_transform = Unnormalize(MEAN, STD)
 
-
-def train_validation_split(metadata_dataframe, frac=0.2):
-
-    n = int(len(metadata_dataframe) * frac)
-    validation_dataframe = metadata_dataframe.iloc[0:n]
-    train_dataframe = metadata_dataframe.iloc[n:].reset_index()
-
-    return train_dataframe, validation_dataframe
+model_save_path = os.path.join(MODELS_DIECTORY, "lowest_loss_model.pth")
 
 
-def create_data_loaders(frames_dataframe, batch_size, num_workers):
-    train_df, val_df = train_validation_split(frames_dataframe)
+
+# def train_validation_split(metadata_dataframe, frac=0.2):
+#
+#     n = int(len(metadata_dataframe) * frac)
+#     validation_dataframe = metadata_dataframe.iloc[0:n]
+#     train_dataframe = metadata_dataframe.iloc[n:].reset_index()
+#
+#     return train_dataframe, validation_dataframe
+
+
+def create_data_loaders(batch_size, num_workers):
+    # train_df, val_df = train_validation_split(frames_dataframe)
+
+    train_df = pd.read_csv(TRAINING_DATAFRAME_PATH)
+    val_df = pd.read_csv(VALIDATION_DATAFRAME_PATH)
 
     train_dataset = DeepfakeDataset(train_df)
 
@@ -57,13 +64,12 @@ def create_data_loaders(frames_dataframe, batch_size, num_workers):
 def train_model(model, criterion, optimizer, scheduler, epochs):
 
     since = time.time()
-    best_model_wts = copy.deepcopy(model.state_dict())
+    # best_model_wts = copy.deepcopy(model.state_dict())
     mimimum_loss = 10000000
-
     for epoch in range(epochs):
         print('Epoch {}/{}'.format(epoch, epochs - 1))
         print('-' * 10)
-
+        batch_number = 0
         # Each epoch has a training and validation phase
         for phase in ['train', 'val']:
             if phase == 'train':
@@ -75,6 +81,7 @@ def train_model(model, criterion, optimizer, scheduler, epochs):
 
             # Iterate over data.
             for inputs, labels in dataloaders[phase]:
+                batch_number += 1
                 inputs = inputs.to(gpu)
                 labels = labels.to(gpu)
 
@@ -97,6 +104,11 @@ def train_model(model, criterion, optimizer, scheduler, epochs):
 
                 # statistics
                 running_loss += loss.item() * inputs.size(0)
+                if batch_number % 500 == 0:
+                    print("Half of Epoch, Batch Number: {}".format(batch_number))
+                    time_elapsed = time.time() - since
+                    print('Training complete in {:.0f}m {:.0f}s'.format(
+                        time_elapsed // 60, time_elapsed % 60))
 
             if phase == 'train':
                 scheduler.step()
@@ -108,7 +120,8 @@ def train_model(model, criterion, optimizer, scheduler, epochs):
             # deep copy the model
             if phase == 'val' and mimimum_loss > epoch_loss:
                 mimimum_loss = epoch_loss
-                best_model_wts = copy.deepcopy(model.state_dict())
+                # best_model_wts = copy.deepcopy(model.state_dict())
+                torch.save(model.state_dict(), model_save_path)
 
         print()
 
@@ -118,14 +131,16 @@ def train_model(model, criterion, optimizer, scheduler, epochs):
     print('Loss: {:4f}'.format(mimimum_loss))
 
     # load best model weights
-    model.load_state_dict(best_model_wts)
+    # model.load_state_dict(best_model_wts)
+    model.load_state_dict(torch.load(model_save_path))
     return model
 
 
 if __name__ == '__main__':
-    frames_dataframe = pd.read_csv(os.path.join(DATAFRAMES_DIRECTORY, "frames_dataframe.csv"))
+    # frames_dataframe = pd.read_csv(os.path.join(DATAFRAMES_DIRECTORY, "frames_dataframe.csv"))
     gpu = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
-    train_loader, validation_loader = create_data_loaders(frames_dataframe, BATCH_SIZE, 2)
+    print(gpu)
+    train_loader, validation_loader = create_data_loaders(BATCH_SIZE, 6)
     dataloaders = {
         "train": train_loader,
         "val": validation_loader
@@ -136,12 +151,15 @@ if __name__ == '__main__':
         "val": len(validation_loader.dataset)
     }
 
+    # print(dataset_size["train"])
+    # print(dataset_size["val"])
+
     model = EfficientNet.from_pretrained('efficientnet-b0', weights_path=NOISY_STUDENT_WEIGHTS_FILENAME,
                                          num_classes=1)
 
     # freeze parameters so that gradients are not computed
-    # for name, param in model.named_parameters():
-    #     param.requires_grad = False
+    for name, param in model.named_parameters():
+        param.requires_grad = False
 
     model._fc = nn.Linear(1280, 1)
 
@@ -151,14 +169,14 @@ if __name__ == '__main__':
 
     # Observe that only parameters of final layer are being optimized as
     # opposed to before.
-    # optimizer_ft = optim.SGD(model._fc.parameters(), lr=0.001, momentum=0.9)
-    optimizer_ft = optim.SGD(model.parameters(), lr=0.001, momentum=0.9)
+    optimizer_ft = optim.SGD(model._fc.parameters(), lr=0.01, momentum=0.9, weight_decay=0.)
+    # optimizer_ft = optim.SGD(model.parameters(), lr=0.001, momentum=0.9)
     # Decay LR by a factor of 0.1 every 7 epochs
     exp_lr_scheduler = lr_scheduler.StepLR(optimizer_ft, step_size=7, gamma=0.1)
 
     model = train_model(model, criterion, optimizer_ft, exp_lr_scheduler, 25)
-    model_save_path = os.path.join(MODELS_DIECTORY, "lowest_loss_model.pth")
-    torch.save(model.state_dict(), model_save_path)
+    # model_save_path = os.path.join(MODELS_DIECTORY, "lowest_loss_model.pth")
+    # torch.save(model.state_dict(), model_save_path)
 
 
     # print([k for k, v in net.named_parameters() if v.requires_grad])
