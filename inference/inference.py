@@ -1,3 +1,4 @@
+import json
 import os
 import time
 from collections import defaultdict
@@ -19,6 +20,11 @@ from VideoProcessing.VideoReader import norm_crop, ARCFACE_REFERENCE
 model_save_path = os.path.join(MODELS_DIECTORY, "lowest_loss_model.pth")
 
 scores_path = "scores.csv"
+final_path = "final.csv"
+
+error_files = ["4662.mp4", "4688.mp4", "4974.mp4", "5566.mp4", "5727.mp4", "5929.mp4", "6011.mp4", "6283.mp4",
+               "6624.mp4", "6905.mp4", "7657.mp4", "7750.mp4"
+               "7050.mp4", "7121.mp4", "7298.mp4", "7370.mp4", "7391.mp4", "7468.mp4", "7534.mp4", "7608.mp4", "7750.mp4"]
 
 
 class InferenceLoader:
@@ -26,7 +32,7 @@ class InferenceLoader:
     def __init__(self, video_dir, face_detector,
                  transform=None, batch_size=15, face_limit=15):
         self.video_dir = video_dir
-        self.test_videos = sorted(f for f in os.listdir(video_dir) if f.endswith(".mp4"))[:5]
+        self.test_videos = sorted(f for f in os.listdir(video_dir) if f.endswith(".mp4"))[3534:3608]
 
         self.transform = transform
         self.face_detector = face_detector
@@ -53,8 +59,10 @@ class InferenceLoader:
                     if not success:
                         continue
 
-                    print(file_name)
-                    bounding_box, landmarks = face_detector.detect(frame, threshold=0.5, scale=1.0)
+                    if file_name in error_files:
+                        bounding_box, landmarks = face_detector.detect(frame, threshold=0.5, scale=0.55)
+                    else:
+                        bounding_box, landmarks = face_detector.detect(frame, threshold=0.5, scale=1.0)
                     if bounding_box.shape[0] == 0:
                         continue
 
@@ -95,10 +103,6 @@ class InferenceLoader:
                 batch_count += 1
                 batch_buf.clear()
 
-                if batch_count % 15 == 0:
-                    elapsed = 1000 * (time.time() - t0)
-                    print("T: %.2f ms / batch" % (elapsed / batch_count))
-
         if len(batch_buf) > 0:
             yield torch.stack(batch_buf)
 
@@ -113,6 +117,10 @@ class InferenceLoader:
         for file_name in sorted(accessed):
             self.score[file_name] = torch.mean(torch.stack(self.record[file_name]), dim=0)
             print("[%s] %.6f" % (file_name, self.score[file_name]))
+
+        with open(scores_path, "w") as f:
+            for key in self.score.keys():
+                f.write("%s,%s\n" % (key, self.score[key].item()))
 
 
 if __name__ == '__main__':
@@ -136,6 +144,7 @@ if __name__ == '__main__':
             y_pred = torch.sigmoid(y_pred.squeeze())
             loader.feedback(y_pred)
 
-    with open(scores_path, "w") as f:
+
+    with open(final_path, "w") as f:
         for key in loader.score.keys():
             f.write("%s,%s\n" % (key, loader.score[key].item()))
