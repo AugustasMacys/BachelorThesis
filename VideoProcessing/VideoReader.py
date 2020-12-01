@@ -11,9 +11,10 @@ from tqdm import tqdm
 from skimage.transform import SimilarityTransform
 from insightface.utils.face_align import arcface_src
 
-from utilities import TRAIN_FACES_DIRECTORY, DATAFRAMES_DIRECTORY
+from utilities import TRAIN_FACES_DIRECTORY, DATAFRAMES_DIRECTORY, REAL_VIDEO_SAMPLE_DIRECTORY,\
+    TEST_VIDEO_READER_DIRETORY
 
-FACE_SIZE = 224
+FACE_SIZE = 320
 INSIGHTFACE_SIZE = 112
 FACTOR = FACE_SIZE / INSIGHTFACE_SIZE
 ARCFACE_REFERENCE = arcface_src * FACTOR
@@ -54,15 +55,24 @@ def norm_crop(img, landmark, arcface_reference, image_size=112):
 def video_frame_extractor(video_name, folder):
     capturator = cv2.VideoCapture(video_name)
     frames_number = int(capturator.get(cv2.CAP_PROP_FRAME_COUNT))
-
+    width = int(capturator.get(cv2.CAP_PROP_FRAME_WIDTH))
+    scale = 1.0
     for i in range(frames_number):
         capturator.grab()
         if i % 20 == 0: # Depends how many frames I want
             success, frame = capturator.retrieve()
+
             if not success:
                 continue
 
-            bounding_box, landmarks = model.detect(frame, threshold=0.5, scale=1.0)
+            if width <= 300:
+                scale = 2.0
+            elif 1000 < width <= 1900:
+                scale = 0.5
+            elif width > 1900:
+                scale = 0.33
+
+            bounding_box, landmarks = model.detect(frame, threshold=0.7, scale=scale)
             if bounding_box.shape[0] == 0:
                 continue
 
@@ -71,7 +81,7 @@ def video_frame_extractor(video_name, folder):
             face_landmark = landmarks[max_face_idx]
 
             face_landmark = face_landmark.reshape(5, 2).astype(np.int)
-            transformed_image = norm_crop(frame, face_landmark, ARCFACE_REFERENCE, image_size=224)
+            transformed_image = norm_crop(frame, face_landmark, ARCFACE_REFERENCE, image_size=FACE_SIZE)
 
             identifier = ntpath.basename(video_name)[:-4] + '_' + str(i)
             save_string = os.path.join(folder, identifier) + ".png"
@@ -87,6 +97,9 @@ if __name__ == '__main__':
 
     training_dataframe_path = os.path.join(DATAFRAMES_DIRECTORY, "training_dataframe.csv")
     video_filenames = pd.read_csv(training_dataframe_path)["video_name"]
+    # video_filenames = [os.path.join(REAL_VIDEO_SAMPLE_DIRECTORY, path) for path in os.listdir(REAL_VIDEO_SAMPLE_DIRECTORY)]
+    # print(video_filenames)
+    # output_folder = TEST_VIDEO_READER_DIRETORY
     output_folder = TRAIN_FACES_DIRECTORY
     model = insightface.model_zoo.get_model('retinaface_r50_v1')
     model.prepare(ctx_id=0, nms=0.4)

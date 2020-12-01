@@ -144,7 +144,6 @@ if __name__ == '__main__':
             y_pred = torch.sigmoid(y_pred.squeeze())
             loader.feedback(y_pred)
 
-
     with open(final_path, "w") as f:
         for key in loader.score.keys():
             f.write("%s,%s\n" % (key, loader.score[key].item()))

@@ -10,6 +10,8 @@ METADATA_FILENAME = "metadata.json"
 
 FACES_DIRECTORY = os.path.join(ROOT_DIR, "extracted_images")
 SAMPLE_VIDEO_DIRECTORY = os.path.join(ROOT_DIR, "video_examples")
+REAL_VIDEO_SAMPLE_DIRECTORY = os.path.join(ROOT_DIR, "real_video_examples")
+TEST_VIDEO_READER_DIRETORY = os.path.join(ROOT_DIR, "test_video_reader")
 DATAFRAMES_DIRECTORY = os.path.join(ROOT_DIR, "dataframes")
 NOISY_STUDENT_DIRECTORY = os.path.join(ROOT_DIR, "noisy_student_weights")
 MODELS_DIECTORY = os.path.join(ROOT_DIR, "trained_models")
@@ -21,6 +23,10 @@ TRAIN_FACES_DIRECTORY = os.path.join(ROOT_DIR, "initial_training_faces")
 
 VALIDATION_DATAFRAME_PATH = os.path.join(DATAFRAMES_DIRECTORY, "faces_validation.csv")
 TRAINING_DATAFRAME_PATH = os.path.join(DATAFRAMES_DIRECTORY, "faces_training.csv")
+
+
+EFFICIENT_B0_SIZE = 224
+EFFICIENT_B4_SIZE = 320
 
 
 def get_specific_video_names(folder, number=20, label='FAKE'):
