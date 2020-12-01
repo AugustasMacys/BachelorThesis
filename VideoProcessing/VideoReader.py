@@ -8,48 +8,11 @@ import os
 
 from tqdm import tqdm
 
-from skimage.transform import SimilarityTransform
-from insightface.utils.face_align import arcface_src
 
 from utilities import TRAIN_FACES_DIRECTORY, DATAFRAMES_DIRECTORY, REAL_VIDEO_SAMPLE_DIRECTORY,\
     TEST_VIDEO_READER_DIRETORY
 
 FACE_SIZE = 320
-INSIGHTFACE_SIZE = 112
-FACTOR = FACE_SIZE / INSIGHTFACE_SIZE
-ARCFACE_REFERENCE = arcface_src * FACTOR
-
-
-# insightface/utils/face_align.py
-def norm_crop(img, landmark, arcface_reference, image_size=112):
-    def get_transform_matrix(landmarks):
-        assert landmarks.shape == (5, 2)
-
-        tform = SimilarityTransform()
-        lmk_tran = np.insert(landmarks, 2, values=np.ones(5), axis=1)
-        min_M = []
-        min_index = []
-        min_error = np.inf
-        src = arcface_reference
-
-        for i in np.arange(src.shape[0]):
-            tform.estimate(landmarks, src[i])
-        transform_matrix = tform.params[0:2, :]
-
-        results = np.dot(transform_matrix, lmk_tran.T)
-        results = results.T
-        error = np.sum(np.sqrt(np.sum((results - src[i]) ** 2, axis=1)))
-
-        if error < min_error:
-            min_error = error
-            min_M = transform_matrix
-            min_index = i
-
-        return min_M, min_index
-
-    M, pose_index = get_transform_matrix(landmark)
-    warped = cv2.warpAffine(img, M, (image_size, image_size), borderValue=0.0)
-    return warped
 
 
 def video_frame_extractor(video_name, folder):
@@ -72,20 +35,30 @@ def video_frame_extractor(video_name, folder):
             elif width > 1900:
                 scale = 0.33
 
-            bounding_box, landmarks = model.detect(frame, threshold=0.7, scale=scale)
+            bounding_box, _ = model.detect(frame, threshold=0.7, scale=scale)
             if bounding_box.shape[0] == 0:
                 continue
 
-            areas = (bounding_box[:, 3] - bounding_box[:, 1]) * (bounding_box[:, 2] - bounding_box[:, 0])
-            max_face_idx = areas.argmax()
-            face_landmark = landmarks[max_face_idx]
+            x_min = bounding_box[:, 0]
+            y_min = bounding_box[:, 1]
+            x_max = bounding_box[:, 2]
+            y_max = bounding_box[:, 3]
 
-            face_landmark = face_landmark.reshape(5, 2).astype(np.int)
-            transformed_image = norm_crop(frame, face_landmark, ARCFACE_REFERENCE, image_size=FACE_SIZE)
+            areas = (y_max - y_min) * (x_max - x_min)
+            max_face_idx = areas.argmax()
+
+            w = x_max[max_face_idx] - x_min[max_face_idx]
+            h = y_max[max_face_idx] - y_min[max_face_idx]
+
+            margin_width = w // 3
+            margin_height = h // 3
+
+            frame = frame[max(int(y_min[max_face_idx] - margin_height), 0):int(y_max[max_face_idx] + margin_height),
+                    max(int(x_min[max_face_idx] - margin_width), 0):int(x_max[max_face_idx] + margin_width)]
 
             identifier = ntpath.basename(video_name)[:-4] + '_' + str(i)
             save_string = os.path.join(folder, identifier) + ".png"
-            cv2.imwrite(save_string, transformed_image)
+            cv2.imwrite(save_string, frame)
 
     capturator.release()
 
