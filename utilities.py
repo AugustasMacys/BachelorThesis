@@ -20,6 +20,8 @@ VALIDATION_FACES_DIRECTORY = os.path.join(ROOT_DIR, "validation_faces")
 VALIDATION_LABELS = os.path.join(VALIDATION_DIRECTORY, "labels.csv")
 TRAIN_DIRECTORY = os.path.join(ROOT_DIR, "data", "train")
 TRAIN_FACES_DIRECTORY = os.path.join(ROOT_DIR, "initial_training_faces")
+TRAIN_FAKE_FACES_DIRECTORY = os.path.join(ROOT_DIR, "training_fake_faces")
+TRAIN_REAL_FACES_DIRECTORY = os.path.join(ROOT_DIR, "training_real_faces")
 
 VALIDATION_DATAFRAME_PATH = os.path.join(DATAFRAMES_DIRECTORY, "faces_validation.csv")
 TRAINING_DATAFRAME_PATH = os.path.join(DATAFRAMES_DIRECTORY, "faces_training.csv")
@@ -44,8 +46,8 @@ def get_specific_video_names(folder, number=20, label='FAKE'):
     return names
 
 
-def get_fake_videos_with_corresponding_original_videos(folder, original_limit=125,
-                                                       fake_limit=200):
+def get_fake_videos_with_corresponding_original_videos(folder, original_limit,
+                                                       fake_limit):
     path = os.path.join(folder, METADATA_FILENAME)
     fake_list = list()
     original_set = set()
@@ -64,6 +66,23 @@ def get_fake_videos_with_corresponding_original_videos(folder, original_limit=12
                 return fake_list, original_set
 
     return fake_list, original_set
+
+
+def get_number_of_real_videos_in_folders():
+    directories_to_traverse = glob(os.path.join(TRAIN_DIRECTORY, '*', '*') + r'\\')
+    list_real_in_folders = []
+    for directory in directories_to_traverse:
+        path = os.path.join(directory, METADATA_FILENAME)
+        current_real = 0
+        with open(path) as f:
+            data = json.load(f)
+            for id in data:
+                if data[id]["label"] == "REAL":
+                    current_real += 1
+
+        list_real_in_folders.append(current_real)
+
+    return list_real_in_folders
 
 
 def get_original_videos_of_fake_videos(fake_videos, metadata_folder):
@@ -113,11 +132,17 @@ def get_all_files_with_extension_from_folder(folder, extension):
 
 
 if __name__ == '__main__':
+
+    real_videos_in_folder = get_number_of_real_videos_in_folders()
     directories_to_traverse = glob(os.path.join(TRAIN_DIRECTORY, '*', '*') + r'\\')
     all_fake_videos = []
     all_real_videos = []
+    index = 0
     for folder in directories_to_traverse:
-        current_folder_fake_video_names, current_folder_real_video_names = get_fake_videos_with_corresponding_original_videos(folder)
+        needed_real_videos = real_videos_in_folder[index]
+        current_folder_fake_video_names, current_folder_real_video_names = get_fake_videos_with_corresponding_original_videos(folder,
+                                                                                                                              needed_real_videos, needed_real_videos)
+        index += 1
         all_fake_videos.append(current_folder_fake_video_names)
         all_real_videos.append(current_folder_real_video_names)
 
@@ -141,5 +166,5 @@ if __name__ == '__main__':
     fake_dataframe["label"] = 1
     real_dataframe["label"] = 0
 
-    final_dataframe = pd.concat([fake_dataframe, real_dataframe])
+    final_dataframe = pd.concat([fake_dataframe, real_dataframe], ignore_index=True)
     final_dataframe.to_csv(os.path.join(DATAFRAMES_DIRECTORY, "training_dataframe.csv"), index=False)

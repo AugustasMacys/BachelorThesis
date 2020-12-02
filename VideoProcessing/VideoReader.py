@@ -2,15 +2,13 @@ import argparse
 import cv2
 import insightface
 import ntpath
-import numpy as np
 import pandas as pd
 import os
 
 from tqdm import tqdm
 
 
-from utilities import TRAIN_FACES_DIRECTORY, DATAFRAMES_DIRECTORY, REAL_VIDEO_SAMPLE_DIRECTORY,\
-    TEST_VIDEO_READER_DIRETORY
+from utilities import TRAIN_FAKE_FACES_DIRECTORY, TRAIN_REAL_FACES_DIRECTORY, DATAFRAMES_DIRECTORY
 
 FACE_SIZE = 320
 
@@ -50,8 +48,8 @@ def video_frame_extractor(video_name, folder):
             w = x_max[max_face_idx] - x_min[max_face_idx]
             h = y_max[max_face_idx] - y_min[max_face_idx]
 
-            margin_width = w // 3
-            margin_height = h // 3
+            margin_width = w // 4
+            margin_height = h // 4
 
             frame = frame[max(int(y_min[max_face_idx] - margin_height), 0):int(y_max[max_face_idx] + margin_height),
                     max(int(x_min[max_face_idx] - margin_width), 0):int(x_max[max_face_idx] + margin_width)]
@@ -69,14 +67,24 @@ if __name__ == '__main__':
     args = parser.parse_args()
 
     training_dataframe_path = os.path.join(DATAFRAMES_DIRECTORY, "training_dataframe.csv")
-    video_filenames = pd.read_csv(training_dataframe_path)["video_name"]
+    video_filenames = pd.read_csv(training_dataframe_path)
+    real_video_filenames = video_filenames.loc[video_filenames["label"] == 0]["video_name"].values
+    fake_video_filenames = video_filenames.loc[video_filenames["label"] == 1]["video_name"].values
+    # print(len(real_video_filenames))
+    # exit(0)
     # video_filenames = [os.path.join(REAL_VIDEO_SAMPLE_DIRECTORY, path) for path in os.listdir(REAL_VIDEO_SAMPLE_DIRECTORY)]
     # print(video_filenames)
     # output_folder = TEST_VIDEO_READER_DIRETORY
-    output_folder = TRAIN_FACES_DIRECTORY
+    output_folder = TRAIN_REAL_FACES_DIRECTORY
     model = insightface.model_zoo.get_model('retinaface_r50_v1')
     model.prepare(ctx_id=0, nms=0.4)
-    with tqdm(total=len(video_filenames)) as bar:
-        for video in video_filenames:
+    with tqdm(total=len(real_video_filenames)) as bar:
+        for video in real_video_filenames:
+            video_frame_extractor(video, output_folder)
+            bar.update()
+
+    output_folder = TRAIN_FAKE_FACES_DIRECTORY
+    with tqdm(total=len(fake_video_filenames)) as bar:
+        for video in fake_video_filenames:
             video_frame_extractor(video, output_folder)
             bar.update()
