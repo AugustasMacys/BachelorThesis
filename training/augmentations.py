@@ -40,7 +40,7 @@ class IsotropicResize(DualTransform):
                                           interpolation_up=interpolation_up)
 
 
-def augmentation_pipeline(p=0.5, size=320):
+def augmentation_pipeline(size=224):
     return Compose([
         ImageCompression(quality_lower=60, quality_upper=100, p=0.5),
         HorizontalFlip(),
@@ -66,7 +66,13 @@ def augmentation_pipeline(p=0.5, size=320):
         ], p=0.6),
         ToSepia(p=0.1),
         ShiftScaleRotate(shift_limit=0.1, scale_limit=0.2, rotate_limit=10, border_mode=cv2.BORDER_CONSTANT, p=0.5),
-    ], p=p)
+    ])
+
+
+def validation_augmentation_pipeline(size=224):
+    return Compose([
+        IsotropicResize(max_side=size, interpolation_down=cv2.INTER_AREA, interpolation_up=cv2.INTER_CUBIC)
+    ])
 
 
 transformation = transforms.Compose([

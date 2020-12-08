@@ -1,25 +1,62 @@
 import os
+from functools import partial
+
 import pandas as pd
 
 import torch
 import time
 
+from training.augmentations import transformation, augmentation_pipeline, validation_augmentation_pipeline
 from training.trainUtilities import Unnormalize
-from utilities import NOISY_STUDENT_DIRECTORY, MODELS_DIECTORY,\
+from utilities import NOISY_STUDENT_DIRECTORY, MODELS_DIECTORY, \
     VALIDATION_DATAFRAME_PATH, TRAINING_DATAFRAME_PATH
 
+
 from torch.utils.data import DataLoader
-from torch.nn import functional as F
+from torch.nn import functional as F, AdaptiveAvgPool2d, Dropout, Linear
 from torch.optim import lr_scheduler
 import torch.nn as nn
 import torch.optim as optim
 
-from efficientnet_pytorch import EfficientNet
+# from efficientnet_pytorch import EfficientNet
+
+from timm.models.efficientnet import tf_efficientnet_b4_ns
+
+MAX_ITERATIONS = 75000
+BATCHES_PER_EPOCH = 2500
+
+encoder_params = {
+    "tf_efficientnet_b4_ns": {
+        "features": 1792,
+        "init_op": partial(tf_efficientnet_b4_ns,
+                           num_classes=1,
+                           # input_size=(3, 224, 224),
+                           pretrained=True,
+                           drop_path_rate=0.5)
+    }
+}
+
+
+class DeepfakeClassifier(nn.Module):
+    def __init__(self, dropout_rate=0.0):
+        super().__init__()
+        self.encoder = encoder_params["tf_efficientnet_b4_ns"]["init_op"]()
+        self.avg_pool = AdaptiveAvgPool2d((1, 1))
+        self.dropout = Dropout(dropout_rate)
+        self.fc = Linear(encoder_params["tf_efficientnet_b4_ns"]["features"], 1)
+
+    def forward(self, x):
+        x = self.encoder.forward_features(x)
+        x = self.avg_pool(x).flatten(1)
+        x = self.dropout(x)
+        x = self.fc(x)
+        return x
+
 
 from DeepfakeDataset import DeepfakeDataset
 
 IMAGE_SIZE = 224
-BATCH_SIZE = 64
+BATCH_SIZE = 16
 
 MEAN = [0.485, 0.456, 0.406]
 STD = [0.229, 0.224, 0.225]
@@ -35,12 +72,14 @@ def create_data_loaders(batch_size, num_workers):
     train_df = pd.read_csv(TRAINING_DATAFRAME_PATH)
     val_df = pd.read_csv(VALIDATION_DATAFRAME_PATH)
 
-    train_dataset = DeepfakeDataset(train_df)
+    train_dataset = DeepfakeDataset(train_df, augmentation_pipeline(),
+                                    transformation)
 
     train_loader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True,
                               num_workers=num_workers, pin_memory=True)
 
-    validation_dataset = DeepfakeDataset(val_df)
+    validation_dataset = DeepfakeDataset(val_df, validation_augmentation_pipeline(),
+                                         transformation)
 
     validation_loader = DataLoader(validation_dataset, batch_size=batch_size, shuffle=False,
                                    num_workers=num_workers, pin_memory=True)
@@ -49,10 +88,10 @@ def create_data_loaders(batch_size, num_workers):
 
 
 def train_model(model, criterion, optimizer, scheduler, epochs):
-
     since = time.time()
     # best_model_wts = copy.deepcopy(model.state_dict())
     mimimum_loss = 10000000
+    iteration = 0
     for epoch in range(epochs):
         print('Epoch {}/{}'.format(epoch, epochs - 1))
         print('-' * 10)
@@ -68,7 +107,9 @@ def train_model(model, criterion, optimizer, scheduler, epochs):
 
             # Iterate over data.
             for inputs, labels in dataloaders[phase]:
-                batch_number += 1
+                if phase == "train":
+                    iteration += 1
+                    batch_number += 1
                 inputs = inputs.to(gpu)
                 labels = labels.to(gpu)
 
@@ -97,8 +138,13 @@ def train_model(model, criterion, optimizer, scheduler, epochs):
                     print('Training complete in {:.0f}m {:.0f}s'.format(
                         time_elapsed // 60, time_elapsed % 60))
 
-            if phase == 'train':
-                scheduler.step()
+                if batch_number >= BATCHES_PER_EPOCH:
+                    break
+
+                if phase == 'train':
+                    scheduler.step()
+                    max_lr = max(param_group["lr"] for param_group in optimizer.param_groups)
+                    print("iteration: {}, max_lr: {}".format(iteration, max_lr))
 
             epoch_loss = running_loss / dataset_size[phase]
 
@@ -139,22 +185,20 @@ if __name__ == '__main__':
 
     # print(dataset_size["train"])
     # print(dataset_size["val"])
+    # exit(0)
 
-    model = EfficientNet.from_pretrained('efficientnet-b0', weights_path=NOISY_STUDENT_WEIGHTS_FILENAME,
-                                         num_classes=1)
+    model = DeepfakeClassifier()
+
+    # model = EfficientNet.from_pretrained('efficientnet-b4', weights_path=NOISY_STUDENT_WEIGHTS_FILENAME,
+    #                                      num_classes=1)
     # freeze parameters so that gradients are not computed
-    for name, param in model.named_parameters():
-        param.requires_grad = False
-    model._fc = nn.Linear(1280, 1)
+    # for name, param in model.named_parameters():
+    #     param.requires_grad = False
+    # model._fc = nn.Linear(1280, 1)
+
     model = model.to(gpu)
-
     criterion = F.binary_cross_entropy_with_logits
+    optimizer_ft = optim.SGD(model.parameters(), lr=0.01, momentum=0.9, weight_decay=1e-4, nesterov=True)
+    lr_scheduler = lr_scheduler.LambdaLR(optimizer_ft, lambda iteration: (MAX_ITERATIONS - iteration) / MAX_ITERATIONS)
 
-    # Observe that only parameters of final layer are being optimized as
-    # opposed to before.
-    optimizer_ft = optim.SGD(model._fc.parameters(), lr=0.01, momentum=0.9, weight_decay=0.)
-    # optimizer_ft = optim.SGD(model.parameters(), lr=0.001, momentum=0.9)
-    # Decay LR by a factor of 0.1 every 7 epochs
-    exp_lr_scheduler = lr_scheduler.StepLR(optimizer_ft, step_size=7, gamma=0.1)
-
-    model = train_model(model, criterion, optimizer_ft, exp_lr_scheduler, 25)
+    model = train_model(model, criterion, optimizer_ft, lr_scheduler, 25)

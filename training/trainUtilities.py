@@ -24,10 +24,10 @@ def load_image(filename, image_size=224, resize=False):
     img = cv2.imread(filename)
     img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
 
-    if resize:
-        img = cv2.resize(img, (image_size, image_size))
-
-    img = torch.tensor(img).permute((2, 0, 1)).float().div(255)
-    img = normalize_transform(img)
+    # if resize:
+    #     img = cv2.resize(img, (image_size, image_size))
+    #
+    # img = torch.tensor(img).permute((2, 0, 1)).float().div(255)
+    # img = normalize_transform(img)
 
     return img

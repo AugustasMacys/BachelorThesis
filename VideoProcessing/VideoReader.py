@@ -4,13 +4,15 @@ import insightface
 import ntpath
 import pandas as pd
 import os
+from glob import glob
 
 from tqdm import tqdm
 
 
-from utilities import TRAIN_FAKE_FACES_DIRECTORY, TRAIN_REAL_FACES_DIRECTORY, DATAFRAMES_DIRECTORY
+from utilities import TRAIN_FAKE_FACES_DIRECTORY, TRAIN_REAL_FACES_DIRECTORY, DATAFRAMES_DIRECTORY, \
+    VALIDATION_FACES_DIRECTORY, VALIDATION_DIRECTORY
 
-FACE_SIZE = 320
+FACE_SIZE = 224
 
 
 def video_frame_extractor(video_name, folder):
@@ -65,26 +67,27 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument("--videoFolder")
     args = parser.parse_args()
-
-    training_dataframe_path = os.path.join(DATAFRAMES_DIRECTORY, "training_dataframe.csv")
-    video_filenames = pd.read_csv(training_dataframe_path)
-    real_video_filenames = video_filenames.loc[video_filenames["label"] == 0]["video_name"].values
-    fake_video_filenames = video_filenames.loc[video_filenames["label"] == 1]["video_name"].values
+    validation_video_paths = glob(os.path.join(VALIDATION_DIRECTORY, "*.mp4"))
+    # training_dataframe_path = os.path.join(DATAFRAMES_DIRECTORY, "training_dataframe.csv")
+    # video_filenames = pd.read_csv(training_dataframe_path)
+    # real_video_filenames = video_filenames.loc[video_filenames["label"] == 0]["video_name"].values
+    # fake_video_filenames = video_filenames.loc[video_filenames["label"] == 1]["video_name"].values
     # print(len(real_video_filenames))
     # exit(0)
     # video_filenames = [os.path.join(REAL_VIDEO_SAMPLE_DIRECTORY, path) for path in os.listdir(REAL_VIDEO_SAMPLE_DIRECTORY)]
     # print(video_filenames)
     # output_folder = TEST_VIDEO_READER_DIRETORY
-    output_folder = TRAIN_REAL_FACES_DIRECTORY
+    # output_folder = TRAIN_REAL_FACES_DIRECTORY
+    output_folder = VALIDATION_FACES_DIRECTORY
     model = insightface.model_zoo.get_model('retinaface_r50_v1')
     model.prepare(ctx_id=0, nms=0.4)
-    with tqdm(total=len(real_video_filenames)) as bar:
-        for video in real_video_filenames:
+    with tqdm(total=len(validation_video_paths)) as bar:
+        for video in validation_video_paths:
             video_frame_extractor(video, output_folder)
             bar.update()
 
-    output_folder = TRAIN_FAKE_FACES_DIRECTORY
-    with tqdm(total=len(fake_video_filenames)) as bar:
-        for video in fake_video_filenames:
-            video_frame_extractor(video, output_folder)
-            bar.update()
+    # output_folder = TRAIN_FAKE_FACES_DIRECTORY
+    # with tqdm(total=len(fake_video_filenames)) as bar:
+    #     for video in fake_video_filenames:
+    #         video_frame_extractor(video, output_folder)
+    #         bar.update()

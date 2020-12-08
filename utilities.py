@@ -132,7 +132,6 @@ def get_all_files_with_extension_from_folder(folder, extension):
 
 
 if __name__ == '__main__':
-
     real_videos_in_folder = get_number_of_real_videos_in_folders()
     directories_to_traverse = glob(os.path.join(TRAIN_DIRECTORY, '*', '*') + r'\\')
     all_fake_videos = []
@@ -168,3 +167,15 @@ if __name__ == '__main__':
 
     final_dataframe = pd.concat([fake_dataframe, real_dataframe], ignore_index=True)
     final_dataframe.to_csv(os.path.join(DATAFRAMES_DIRECTORY, "training_dataframe.csv"), index=False)
+
+    fake_frame_faces = glob(os.path.join(TRAIN_FAKE_FACES_DIRECTORY, '*'))
+    real_frame_faces = glob(os.path.join(TRAIN_REAL_FACES_DIRECTORY, '*'))
+
+    training_faces_real = pd.DataFrame(real_frame_faces, columns=["image_path"])
+    training_faces_fake = pd.DataFrame(fake_frame_faces, columns=["image_path"])
+
+    training_faces_real["label"] = 0
+    training_faces_fake["label"] = 1
+
+    training_faces_dataframe = pd.concat([training_faces_real, training_faces_fake], ignore_index=True)
+    training_faces_dataframe.to_csv(TRAINING_DATAFRAME_PATH, index=False)

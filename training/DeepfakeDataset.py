@@ -7,7 +7,7 @@ class DeepfakeDataset(Dataset):
     """Deepfake dataset"""
 
     def __init__(self, frames_dataframe, augmentations, transformations,
-                 image_size=320):
+                 image_size=224):
 
         self.image_size = image_size
         if 'index' in frames_dataframe:
@@ -22,9 +22,8 @@ class DeepfakeDataset(Dataset):
         row = self.df.iloc[index]
         image_name = row["image_path"]
         label = row["label"]
-        img = load_image(image_name, self.image_size)
-        if self.phase == "train":
-            img = self.augmentate(image=img)["image"]
+        img = load_image(image_name)
+        img = self.augmentate(image=img)["image"]
 
         return self.transform(img), label
 
