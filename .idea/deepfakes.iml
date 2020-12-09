@@ -15,6 +15,7 @@
       <excludeFolder url="file://$MODULE_DIR$/retina_model" />
       <excludeFolder url="file://$MODULE_DIR$/test_video_reader" />
       <excludeFolder url="file://$MODULE_DIR$/tmp" />
+      <excludeFolder url="file://$MODULE_DIR$/trained_models" />
       <excludeFolder url="file://$MODULE_DIR$/training_fake_faces" />
       <excludeFolder url="file://$MODULE_DIR$/training_real_faces" />
       <excludeFolder url="file://$MODULE_DIR$/validation_faces" />

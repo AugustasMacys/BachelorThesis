@@ -157,3 +157,4 @@ initial_training_faces/
 training_fake_faces/
 training_real_faces/
 inference/final.csv
+logs/
