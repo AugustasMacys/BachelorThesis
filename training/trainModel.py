@@ -23,8 +23,8 @@ import torch.optim as optim
 
 # from efficientnet_pytorch import EfficientNet
 
-MAX_ITERATIONS = 75000
-BATCHES_PER_EPOCH = 2500
+MAX_ITERATIONS = 80000
+BATCHES_PER_EPOCH = 8000
 
 encoder_params = {
     "tf_efficientnet_b4_ns": {
@@ -54,7 +54,7 @@ class DeepfakeClassifier(nn.Module):
 
 
 IMAGE_SIZE = 224
-BATCH_SIZE = 16
+BATCH_SIZE = 24
 
 MEAN = [0.485, 0.456, 0.406]
 STD = [0.229, 0.224, 0.225]
@@ -90,12 +90,12 @@ def train_model(model, criterion, optimizer, scheduler, epochs):
     # best_model_wts = copy.deepcopy(model.state_dict())
     mimimum_loss = 10000000
     iteration = 0
+    batch_number = 0
     for epoch in range(epochs):
         logging.info('Epoch {}/{}'.format(epoch, epochs - 1))
         logging.info('-' * 10)
         # print('Epoch {}/{}'.format(epoch, epochs - 1))
         # print('-' * 10)
-        batch_number = 0
         # Each epoch has a training and validation phase
         for phase in ['train', 'val']:
             if phase == 'train':
@@ -143,6 +143,7 @@ def train_model(model, criterion, optimizer, scheduler, epochs):
                     #     time_elapsed // 60, time_elapsed % 60))
 
                 if batch_number >= BATCHES_PER_EPOCH:
+                    batch_number = 0
                     break
 
                 if phase == 'train':
@@ -151,7 +152,11 @@ def train_model(model, criterion, optimizer, scheduler, epochs):
                     logging.info("iteration: {}, max_lr: {}".format(iteration, max_lr))
                     # print("iteration: {}, max_lr: {}".format(iteration, max_lr))
 
-            epoch_loss = running_loss / dataset_size[phase]
+            if phase == "train":
+                # epoch_loss = running_loss / dataset_size[phase]
+                epoch_loss = running_loss / (BATCHES_PER_EPOCH * BATCH_SIZE) # Does not go through all size
+            else:
+                epoch_loss = running_loss / dataset_size[phase]
 
             logging.info('{} Loss: {:.4f}'.format(phase, epoch_loss))
             # print('{} Loss: {:.4f}'.format(phase, epoch_loss))
