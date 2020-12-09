@@ -4,7 +4,8 @@ from torchvision import transforms
 from albumentations import (
     HorizontalFlip, Blur, GaussianBlur, HueSaturationValue, DualTransform,
     IAAAdditiveGaussianNoise, GaussNoise, MotionBlur,
-    IAASharpen, IAAEmboss, OneOf, Compose, RandomBrightnessContrast, ToSepia, ImageCompression, ShiftScaleRotate
+    IAASharpen, IAAEmboss, OneOf, Compose, RandomBrightnessContrast, ToSepia, ImageCompression, ShiftScaleRotate,
+    PadIfNeeded
 )
 
 from training.trainUtilities import MEAN, STD
@@ -23,6 +24,8 @@ def isotropically_resize_image(img, size, interpolation_down=cv2.INTER_AREA, int
         w = w * scale
         h = size
     interpolation = interpolation_up if scale > 1 else interpolation_down
+    # print("width:" + str(w))
+    # print("height:" + str(h))
     resized = cv2.resize(img, (int(w), int(h)), interpolation=interpolation)
     return resized
 
@@ -58,6 +61,7 @@ def augmentation_pipeline(size=224):
             IsotropicResize(max_side=size, interpolation_down=cv2.INTER_AREA, interpolation_up=cv2.INTER_LINEAR),
             IsotropicResize(max_side=size, interpolation_down=cv2.INTER_LINEAR, interpolation_up=cv2.INTER_LINEAR),
         ], p=1),
+        PadIfNeeded(min_height=size, min_width=size, border_mode=cv2.BORDER_CONSTANT),
         HueSaturationValue(p=0.2),
         OneOf([
             IAASharpen(),
@@ -71,7 +75,8 @@ def augmentation_pipeline(size=224):
 
 def validation_augmentation_pipeline(size=224):
     return Compose([
-        IsotropicResize(max_side=size, interpolation_down=cv2.INTER_AREA, interpolation_up=cv2.INTER_CUBIC)
+        IsotropicResize(max_side=size, interpolation_down=cv2.INTER_AREA, interpolation_up=cv2.INTER_CUBIC),
+        PadIfNeeded(min_height=size, min_width=size, border_mode=cv2.BORDER_CONSTANT),
     ])
 
 

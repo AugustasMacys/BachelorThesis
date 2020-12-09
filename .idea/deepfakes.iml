@@ -1,7 +1,24 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <module type="PYTHON_MODULE" version="4">
   <component name="NewModuleRootManager">
-    <content url="file://$MODULE_DIR$" />
+    <content url="file://$MODULE_DIR$">
+      <excludeFolder url="file://$MODULE_DIR$/aws" />
+      <excludeFolder url="file://$MODULE_DIR$/cookies" />
+      <excludeFolder url="file://$MODULE_DIR$/data" />
+      <excludeFolder url="file://$MODULE_DIR$/extracted_fake_images" />
+      <excludeFolder url="file://$MODULE_DIR$/extracted_real_images" />
+      <excludeFolder url="file://$MODULE_DIR$/fake_video_examples" />
+      <excludeFolder url="file://$MODULE_DIR$/noisy_student_weights" />
+      <excludeFolder url="file://$MODULE_DIR$/papers" />
+      <excludeFolder url="file://$MODULE_DIR$/playing_images" />
+      <excludeFolder url="file://$MODULE_DIR$/real_video_examples" />
+      <excludeFolder url="file://$MODULE_DIR$/retina_model" />
+      <excludeFolder url="file://$MODULE_DIR$/test_video_reader" />
+      <excludeFolder url="file://$MODULE_DIR$/tmp" />
+      <excludeFolder url="file://$MODULE_DIR$/training_fake_faces" />
+      <excludeFolder url="file://$MODULE_DIR$/training_real_faces" />
+      <excludeFolder url="file://$MODULE_DIR$/validation_faces" />
+    </content>
     <orderEntry type="jdk" jdkName="Python 3.6 (deepfakes)" jdkType="Python SDK" />
     <orderEntry type="sourceFolder" forTests="false" />
   </component>

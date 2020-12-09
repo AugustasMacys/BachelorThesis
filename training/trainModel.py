@@ -110,6 +110,7 @@ def train_model(model, criterion, optimizer, scheduler, epochs):
                 if phase == "train":
                     iteration += 1
                     batch_number += 1
+
                 inputs = inputs.to(gpu)
                 labels = labels.to(gpu)
 
@@ -170,7 +171,7 @@ def train_model(model, criterion, optimizer, scheduler, epochs):
 
 if __name__ == '__main__':
     gpu = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
-    print(gpu)
+
     train_loader, validation_loader = create_data_loaders(BATCH_SIZE, 6)
 
     dataloaders = {
@@ -182,10 +183,6 @@ if __name__ == '__main__':
         "train": len(train_loader.dataset),
         "val": len(validation_loader.dataset)
     }
-
-    # print(dataset_size["train"])
-    # print(dataset_size["val"])
-    # exit(0)
 
     model = DeepfakeClassifier()
 

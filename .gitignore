@@ -154,3 +154,6 @@ extracted_fake_images/
 extracted_real_images/
 fake_video_examples/
 initial_training_faces/
+training_fake_faces/
+training_real_faces/
+inference/final.csv
