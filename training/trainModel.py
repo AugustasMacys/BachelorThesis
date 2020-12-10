@@ -142,9 +142,9 @@ def train_model(model, criterion, optimizer, scheduler, epochs):
                     # print('Training complete in {:.0f}m {:.0f}s'.format(
                     #     time_elapsed // 60, time_elapsed % 60))
 
-                if batch_number >= BATCHES_PER_EPOCH:
-                    batch_number = 0
-                    break
+                # if batch_number >= BATCHES_PER_EPOCH:
+                #     batch_number = 0
+                #     break
 
                 if phase == 'train':
                     scheduler.step()
@@ -153,8 +153,8 @@ def train_model(model, criterion, optimizer, scheduler, epochs):
                     # print("iteration: {}, max_lr: {}".format(iteration, max_lr))
 
             if phase == "train":
-                # epoch_loss = running_loss / dataset_size[phase]
-                epoch_loss = running_loss / (BATCHES_PER_EPOCH * BATCH_SIZE) # Does not go through all size
+                epoch_loss = running_loss / dataset_size[phase]
+                # epoch_loss = running_loss / (BATCHES_PER_EPOCH * BATCH_SIZE) # Does not go through all size
             else:
                 epoch_loss = running_loss / dataset_size[phase]
 
