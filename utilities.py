@@ -2,6 +2,7 @@ import json
 import os
 import pandas as pd
 import shutil
+import ntpath
 
 from glob import glob
 
@@ -13,6 +14,7 @@ SAMPLE_VIDEO_DIRECTORY = os.path.join(ROOT_DIR, "video_examples")
 REAL_VIDEO_SAMPLE_DIRECTORY = os.path.join(ROOT_DIR, "real_video_examples")
 TEST_VIDEO_READER_DIRETORY = os.path.join(ROOT_DIR, "test_video_reader")
 DATAFRAMES_DIRECTORY = os.path.join(ROOT_DIR, "dataframes")
+PAIR_DATAFRAMES_DIRECTORY = os.path.join(ROOT_DIR, "dataframes_pairs")
 NOISY_STUDENT_DIRECTORY = os.path.join(ROOT_DIR, "noisy_student_weights")
 MODELS_DIECTORY = os.path.join(ROOT_DIR, "trained_models")
 VALIDATION_DIRECTORY = os.path.join(ROOT_DIR, "data", "test")
@@ -22,6 +24,7 @@ TRAIN_DIRECTORY = os.path.join(ROOT_DIR, "data", "train")
 TRAIN_FACES_DIRECTORY = os.path.join(ROOT_DIR, "initial_training_faces")
 TRAIN_FAKE_FACES_DIRECTORY = os.path.join(ROOT_DIR, "training_fake_faces")
 TRAIN_REAL_FACES_DIRECTORY = os.path.join(ROOT_DIR, "training_real_faces")
+RESNET_FOLDER = os.path.join(ROOT_DIR, "resnet_model")
 
 VALIDATION_DATAFRAME_PATH = os.path.join(DATAFRAMES_DIRECTORY, "faces_validation.csv")
 TRAINING_DATAFRAME_PATH = os.path.join(DATAFRAMES_DIRECTORY, "faces_training.csv")
@@ -50,22 +53,22 @@ def get_fake_videos_with_corresponding_original_videos(folder, original_limit,
                                                        fake_limit):
     path = os.path.join(folder, METADATA_FILENAME)
     fake_list = list()
-    original_set = set()
+    original_list = list()
     original_limit = original_limit
     with open(path) as f:
         data = json.load(f)
         for id in data:
             if data[id]["label"] == "FAKE":
-                if len(fake_list) < fake_limit:
-                    fake_list.append(os.path.join(folder, id))
-                if original_limit > len(original_set):
-                    if data[id]["original"]:
-                        original_set.add(os.path.join(folder, data[id]["original"]))
+                if data[id]["original"]:
+                    original_full_path = os.path.join(folder, data[id]["original"])
+                    if original_full_path not in original_list:
+                        original_list.append(os.path.join(folder, data[id]["original"]))
+                        fake_list.append(os.path.join(folder, id))
 
-            if len(fake_list) == fake_limit and len(original_set) == original_limit:
-                return fake_list, original_set
+            if len(fake_list) == fake_limit and len(original_list) == original_limit:
+                return fake_list, original_list
 
-    return fake_list, original_set
+    return fake_list, original_list
 
 
 def get_number_of_real_videos_in_folders():
@@ -159,23 +162,35 @@ if __name__ == '__main__':
     flat_fake = [item for sublist in all_fake_videos for item in sublist]
     flat_real = [item for sublist in all_real_videos for item in sublist]
 
+    # dataframe_dictionary = {
+    #     "fake_video_name": flat_fake,
+    #     "real_video_name": flat_real
+    # }
+    #
+    # images_dataframe = pd.DataFrame(dataframe_dictionary)
+    # images_dataframe = pd.DataFrame(images_dataframe.to_numpy().flatten())
+
+    # images_dataframe.rename({'0': "video_name"})
+    # images_dataframe["label"] = 0
+
     fake_dataframe = pd.DataFrame(flat_fake, columns=["video_name"])
     real_dataframe = pd.DataFrame(flat_real, columns=["video_name"])
 
     fake_dataframe["label"] = 1
     real_dataframe["label"] = 0
+    #
+    # final_dataframe = pd.concat([fake_dataframe, real_dataframe], ignore_index=True)
+    real_dataframe.to_csv(os.path.join(PAIR_DATAFRAMES_DIRECTORY, "real_training_dataframe.csv"), index=False)
+    fake_dataframe.to_csv(os.path.join(PAIR_DATAFRAMES_DIRECTORY, "fake_training_dataframe.csv"), index=False)
 
-    final_dataframe = pd.concat([fake_dataframe, real_dataframe], ignore_index=True)
-    final_dataframe.to_csv(os.path.join(DATAFRAMES_DIRECTORY, "training_dataframe.csv"), index=False)
-
-    fake_frame_faces = glob(os.path.join(TRAIN_FAKE_FACES_DIRECTORY, '*'))
-    real_frame_faces = glob(os.path.join(TRAIN_REAL_FACES_DIRECTORY, '*'))
-
-    training_faces_real = pd.DataFrame(real_frame_faces, columns=["image_path"])
-    training_faces_fake = pd.DataFrame(fake_frame_faces, columns=["image_path"])
-
-    training_faces_real["label"] = 0
-    training_faces_fake["label"] = 1
-
-    training_faces_dataframe = pd.concat([training_faces_real, training_faces_fake], ignore_index=True)
-    training_faces_dataframe.to_csv(TRAINING_DATAFRAME_PATH, index=False)
+    # fake_frame_faces = glob(os.path.join(TRAIN_FAKE_FACES_DIRECTORY, '*'))
+    # real_frame_faces = glob(os.path.join(TRAIN_REAL_FACES_DIRECTORY, '*'))
+    #
+    # training_faces_real = pd.DataFrame(real_frame_faces, columns=["image_path"])
+    # training_faces_fake = pd.DataFrame(fake_frame_faces, columns=["image_path"])
+    #
+    # training_faces_real["label"] = 0
+    # training_faces_fake["label"] = 1
+    #
+    # training_faces_dataframe = pd.concat([training_faces_real, training_faces_fake], ignore_index=True)
+    # training_faces_dataframe.to_csv(TRAINING_DATAFRAME_PATH, index=False)

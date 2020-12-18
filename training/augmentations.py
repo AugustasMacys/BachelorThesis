@@ -1,14 +1,23 @@
 import cv2
+import numpy as np
 
 from torchvision import transforms
 from albumentations import (
-    HorizontalFlip, Blur, GaussianBlur, HueSaturationValue, DualTransform,
-    IAAAdditiveGaussianNoise, GaussNoise, MotionBlur,
-    IAASharpen, IAAEmboss, OneOf, Compose, RandomBrightnessContrast, ToSepia, ImageCompression, ShiftScaleRotate,
-    PadIfNeeded
+    HorizontalFlip, GaussianBlur, HueSaturationValue, DualTransform, GaussNoise, OneOf,
+    Compose, RandomBrightnessContrast, ImageCompression, ShiftScaleRotate,
+    PadIfNeeded, ToGray, FancyPCA
 )
 
 from training.trainUtilities import MEAN, STD
+
+
+def put_to_center(img, input_size):
+    img = img[:input_size, :input_size]
+    image = np.zeros((input_size, input_size, 3), dtype=np.uint8)
+    start_w = (input_size - img.shape[1]) // 2
+    start_h = (input_size - img.shape[0]) // 2
+    image[start_h:start_h + img.shape[0], start_w: start_w + img.shape[1], :] = img
+    return image
 
 
 def isotropically_resize_image(img, size, interpolation_down=cv2.INTER_AREA, interpolation_up=cv2.INTER_CUBIC):
@@ -24,8 +33,6 @@ def isotropically_resize_image(img, size, interpolation_down=cv2.INTER_AREA, int
         w = w * scale
         h = size
     interpolation = interpolation_up if scale > 1 else interpolation_down
-    # print("width:" + str(w))
-    # print("height:" + str(h))
     resized = cv2.resize(img, (int(w), int(h)), interpolation=interpolation)
     return resized
 
@@ -46,31 +53,19 @@ class IsotropicResize(DualTransform):
 def augmentation_pipeline(size=224):
     return Compose([
         ImageCompression(quality_lower=60, quality_upper=100, p=0.5),
+        GaussNoise(p=0.1),
+        GaussianBlur(blur_limit=3, p=0.05),
         HorizontalFlip(),
-        OneOf([
-            IAAAdditiveGaussianNoise(),
-            GaussNoise(),
-        ], p=0.2),
-        OneOf([
-            MotionBlur(p=0.25),
-            GaussianBlur(p=0.5),
-            Blur(blur_limit=3, p=0.25),
-        ], p=0.2),
         OneOf([
             IsotropicResize(max_side=size, interpolation_down=cv2.INTER_AREA, interpolation_up=cv2.INTER_CUBIC),
             IsotropicResize(max_side=size, interpolation_down=cv2.INTER_AREA, interpolation_up=cv2.INTER_LINEAR),
             IsotropicResize(max_side=size, interpolation_down=cv2.INTER_LINEAR, interpolation_up=cv2.INTER_LINEAR),
         ], p=1),
         PadIfNeeded(min_height=size, min_width=size, border_mode=cv2.BORDER_CONSTANT),
-        HueSaturationValue(p=0.2),
-        OneOf([
-            IAASharpen(),
-            IAAEmboss(),
-            RandomBrightnessContrast(),
-        ], p=0.6),
-        ToSepia(p=0.1),
-        ShiftScaleRotate(shift_limit=0.1, scale_limit=0.2, rotate_limit=10, border_mode=cv2.BORDER_CONSTANT, p=0.5),
-    ])
+        OneOf([RandomBrightnessContrast(), FancyPCA(), HueSaturationValue()], p=0.7),
+        ToGray(p=0.2),
+        ShiftScaleRotate(shift_limit=0.1, scale_limit=0.2, rotate_limit=10, border_mode=cv2.BORDER_CONSTANT, p=0.5)]
+    )
 
 
 def validation_augmentation_pipeline(size=224):

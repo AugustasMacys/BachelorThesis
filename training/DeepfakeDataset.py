@@ -1,12 +1,16 @@
+import numpy as np
+from PIL import Image
+
+from albumentations.pytorch.functional import img_to_tensor
 from torch.utils.data import Dataset
 
-from training.trainUtilities import load_image
+from training.trainUtilities import MEAN, STD
 
 
 class DeepfakeDataset(Dataset):
     """Deepfake dataset"""
 
-    def __init__(self, frames_dataframe, augmentations, transformations,
+    def __init__(self, frames_dataframe, augmentations,
                  image_size=224):
 
         self.image_size = image_size
@@ -14,7 +18,6 @@ class DeepfakeDataset(Dataset):
             del frames_dataframe['index']
 
         self.augmentate = augmentations
-        self.transform = transformations
 
         self.df = frames_dataframe
 
@@ -22,10 +25,13 @@ class DeepfakeDataset(Dataset):
         row = self.df.iloc[index]
         image_name = row["image_path"]
         label = row["label"]
-        img = load_image(image_name)
+        img = Image.open(image_name).convert("RGB")
+        img = np.array(img)
         img = self.augmentate(image=img)["image"]
+        img = img_to_tensor(img, {"mean": MEAN,
+                                  "std": STD})
 
-        return self.transform(img), label
+        return img, label
 
     def __len__(self):
         return len(self.df)

@@ -1,30 +1,25 @@
-import json
 import os
 import time
 from collections import defaultdict
 
 import cv2
-import numpy as np
-
 import insightface
-import torch
-import torch.nn as nn
-from efficientnet_pytorch import EfficientNet
+import numpy as np
 from PIL import Image
-from torchvision import transforms as T
+import torch
 
-
-from utilities import MODELS_DIECTORY
-from VideoProcessing.VideoReader import norm_crop, ARCFACE_REFERENCE
+from training.augmentations import isotropically_resize_image, put_to_center, transformation
+from training.trainModel import MyResNeXt
+from utilities import MODELS_DIECTORY, VALIDATION_DIRECTORY
 
 model_save_path = os.path.join(MODELS_DIECTORY, "lowest_loss_model.pth")
 
 scores_path = "scores.csv"
 final_path = "final.csv"
 
-error_files = ["4662.mp4", "4688.mp4", "4974.mp4", "5566.mp4", "5727.mp4", "5929.mp4", "6011.mp4", "6283.mp4",
-               "6624.mp4", "6905.mp4", "7657.mp4", "7750.mp4",
-               "7050.mp4", "7121.mp4", "7298.mp4", "7370.mp4", "7391.mp4", "7468.mp4", "7534.mp4", "7608.mp4"]
+# error_files = ["4662.mp4", "4688.mp4", "4974.mp4", "5566.mp4", "5727.mp4", "5929.mp4", "6011.mp4", "6283.mp4",
+#                "6624.mp4", "6905.mp4", "7657.mp4", "7750.mp4",
+#                "7050.mp4", "7121.mp4", "7298.mp4", "7370.mp4", "7391.mp4", "7468.mp4", "7534.mp4", "7608.mp4"]
 
 
 class InferenceLoader:
@@ -32,7 +27,7 @@ class InferenceLoader:
     def __init__(self, video_dir, face_detector,
                  transform=None, batch_size=15, face_limit=15):
         self.video_dir = video_dir
-        self.test_videos = sorted(f for f in os.listdir(video_dir) if f.endswith(".mp4"))[3534:3608]
+        self.test_videos = sorted(f for f in os.listdir(video_dir) if f.endswith(".mp4"))
 
         self.transform = transform
         self.face_detector = face_detector
@@ -50,6 +45,8 @@ class InferenceLoader:
 
             capturator = cv2.VideoCapture(full_path)
             frames_number = int(capturator.get(cv2.CAP_PROP_FRAME_COUNT))
+            width = int(capturator.get(cv2.CAP_PROP_FRAME_WIDTH))
+            scale = 1.0
             face_counter = 0
 
             for i in range(frames_number):
@@ -59,21 +56,39 @@ class InferenceLoader:
                     if not success:
                         continue
 
-                    if file_name in error_files:
-                        bounding_box, landmarks = face_detector.detect(frame, threshold=0.5, scale=0.55)
-                    else:
-                        bounding_box, landmarks = face_detector.detect(frame, threshold=0.5, scale=1.0)
+                    if width <= 300:
+                        scale = 2.0
+                    elif 1000 < width <= 1900:
+                        scale = 0.5
+                    elif width > 1900:
+                        scale = 0.33
+
+                    bounding_box, landmarks = face_detector.detect(frame, threshold=0.7, scale=scale)
                     if bounding_box.shape[0] == 0:
                         continue
 
-                    areas = (bounding_box[:, 3] - bounding_box[:, 1]) * (bounding_box[:, 2] - bounding_box[:, 0])
+                    x_min = bounding_box[:, 0]
+                    y_min = bounding_box[:, 1]
+                    x_max = bounding_box[:, 2]
+                    y_max = bounding_box[:, 3]
+
+                    areas = (y_max - y_min) * (x_max - x_min)
                     max_face_idx = areas.argmax()
-                    face_landmark = landmarks[max_face_idx]
 
-                    face_landmark = face_landmark.reshape(5, 2).astype(np.int)
-                    transformed_image = norm_crop(frame, face_landmark, ARCFACE_REFERENCE, image_size=224)
-                    transformed_image = Image.fromarray(transformed_image[:, :, ::-1])
+                    w = x_max[max_face_idx] - x_min[max_face_idx]
+                    h = y_max[max_face_idx] - y_min[max_face_idx]
 
+                    margin_width = w // 4
+                    margin_height = h // 4
+
+                    frame = frame[max(int(y_min[max_face_idx] - margin_height), 0):int(y_max[max_face_idx] + margin_height),
+                            max(int(x_min[max_face_idx] - margin_width), 0):int(x_max[max_face_idx] + margin_width)]
+
+                    resized_frame = isotropically_resize_image(frame, 224)
+                    resized_frame = put_to_center(resized_frame, 224)
+                    transformed_image = Image.fromarray(resized_frame[:, :, ::-1])
+
+                    # normalise and apply prediction transform
                     if self.transform:
                         transformed_image = self.transform(transformed_image)
 
@@ -115,9 +130,22 @@ class InferenceLoader:
             self.record[file_name].append(score)
 
         for file_name in sorted(accessed):
-            self.score[file_name] = torch.mean(torch.stack(self.record[file_name]), dim=0)
+            outgoing_score = np.array(self.record[file_name])
+            delta = outgoing_score - 0.5
+            sign_array = np.sign(delta)
+            pos_array = delta > 0
+            neg_array = delta < 0
+            outgoing_score[pos_array] = np.clip(0.5 + sign_array[pos_array] * np.power(abs(delta[pos_array]),
+                                                                                    0.65), 0.01, 0.99)
+            outgoing_score[neg_array] = np.clip(0.5 + sign_array[neg_array] * np.power(abs(delta[neg_array]),
+                                                                                    0.65), 0.01, 0.99)
+
+            weights = np.power(abs(delta), 1.0) + 1e-4
+            final_score = float((outgoing_score * weights).sum() / weights.sum())
+            self.score[file_name] = final_score
             print("[%s] %.6f" % (file_name, self.score[file_name]))
 
+        # Write just outgoing results just in case of CUDA: Memory Out of Space Error
         with open(scores_path, "w") as f:
             for key in self.score.keys():
                 f.write("%s,%s\n" % (key, self.score[key].item()))
@@ -126,16 +154,21 @@ class InferenceLoader:
 if __name__ == '__main__':
     gpu = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 
-    model = EfficientNet.from_name('efficientnet-b0', num_classes=1)
-    model._fc = nn.Linear(1280, 1)
+    # model = EfficientNet.from_name('efficientnet-b0', num_classes=1)
+    # model._fc = nn.Linear(1280, 1)
+    # model.to(gpu)
+    # model.load_state_dict(torch.load(model_save_path))
+    # model.eval()
+
+    model = MyResNeXt()
     model.to(gpu)
     model.load_state_dict(torch.load(model_save_path))
     model.eval()
 
-    validation_directory = r"D:\deepfakes\data\test"
+    validation_directory = VALIDATION_DIRECTORY
     face_detector = insightface.model_zoo.get_model('retinaface_r50_v1')
     face_detector.prepare(ctx_id=0, nms=0.4)
-    loader = InferenceLoader(validation_directory, face_detector, T.ToTensor())
+    loader = InferenceLoader(validation_directory, face_detector, transformation)
 
     for batch in loader:
         batch = batch.cuda(non_blocking=True)

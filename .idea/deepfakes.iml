@@ -12,6 +12,7 @@
       <excludeFolder url="file://$MODULE_DIR$/papers" />
       <excludeFolder url="file://$MODULE_DIR$/playing_images" />
       <excludeFolder url="file://$MODULE_DIR$/real_video_examples" />
+      <excludeFolder url="file://$MODULE_DIR$/resnet_model" />
       <excludeFolder url="file://$MODULE_DIR$/retina_model" />
       <excludeFolder url="file://$MODULE_DIR$/test_video_reader" />
       <excludeFolder url="file://$MODULE_DIR$/tmp" />

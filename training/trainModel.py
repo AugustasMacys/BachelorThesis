@@ -5,13 +5,11 @@ from functools import partial
 import pandas as pd
 import time
 
-from training.augmentations import transformation, augmentation_pipeline, validation_augmentation_pipeline
+from training.augmentations import augmentation_pipeline, validation_augmentation_pipeline, transformation
 from training.trainUtilities import Unnormalize
 from utilities import NOISY_STUDENT_DIRECTORY, MODELS_DIECTORY, \
-    VALIDATION_DATAFRAME_PATH, TRAINING_DATAFRAME_PATH
-
-from DeepfakeDataset import DeepfakeDataset
-
+    VALIDATION_DATAFRAME_PATH, TRAINING_DATAFRAME_PATH, RESNET_FOLDER
+from training.DeepfakeDataset import DeepfakeDataset
 
 import torch
 from timm.models.efficientnet import tf_efficientnet_b4_ns
@@ -20,11 +18,14 @@ from torch.nn import functional as F, AdaptiveAvgPool2d, Dropout, Linear
 from torch.optim import lr_scheduler
 import torch.nn as nn
 import torch.optim as optim
+import torchvision.models as models
 
 # from efficientnet_pytorch import EfficientNet
 
 MAX_ITERATIONS = 80000
 BATCHES_PER_EPOCH = 8000
+
+RESNET_WEIGHTS = os.path.join(RESNET_FOLDER, "resnext50_32x4d-7cdf4587.pth")
 
 encoder_params = {
     "tf_efficientnet_b4_ns": {
@@ -32,7 +33,7 @@ encoder_params = {
         "init_op": partial(tf_efficientnet_b4_ns,
                            num_classes=1,
                            pretrained=True,
-                           drop_path_rate=0.5)
+                           drop_path_rate=0.2)
     }
 }
 
@@ -53,8 +54,29 @@ class DeepfakeClassifier(nn.Module):
         return x
 
 
+class MyResNeXt(models.resnet.ResNet):
+    def __init__(self, training=True):
+        super(MyResNeXt, self).__init__(block=models.resnet.Bottleneck,
+                                        layers=[3, 4, 6, 3],
+                                        groups=32,
+                                        width_per_group=4)
+
+        self.load_state_dict(torch.load(RESNET_WEIGHTS))
+
+        # Override the existing FC layer with a new one.
+        self.fc = nn.Linear(2048, 1)
+
+
+def freeze_until(net, param_name):
+    found_name = False
+    for name, params in net.named_parameters():
+        if name == param_name:
+            found_name = True
+        params.requires_grad = found_name
+
+
 IMAGE_SIZE = 224
-BATCH_SIZE = 24
+BATCH_SIZE = 64
 
 MEAN = [0.485, 0.456, 0.406]
 STD = [0.229, 0.224, 0.225]
@@ -70,14 +92,12 @@ def create_data_loaders(batch_size, num_workers):
     train_df = pd.read_csv(TRAINING_DATAFRAME_PATH)
     val_df = pd.read_csv(VALIDATION_DATAFRAME_PATH)
 
-    train_dataset = DeepfakeDataset(train_df, augmentation_pipeline(),
-                                    transformation)
+    train_dataset = DeepfakeDataset(train_df, augmentation_pipeline())
 
     train_loader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True,
                               num_workers=num_workers, pin_memory=True)
 
-    validation_dataset = DeepfakeDataset(val_df, validation_augmentation_pipeline(),
-                                         transformation)
+    validation_dataset = DeepfakeDataset(val_df, validation_augmentation_pipeline())
 
     validation_loader = DataLoader(validation_dataset, batch_size=batch_size, shuffle=False,
                                    num_workers=num_workers, pin_memory=True)
@@ -141,6 +161,8 @@ def train_model(model, criterion, optimizer, scheduler, epochs):
                         time_elapsed // 60, time_elapsed % 60))
                     # print('Training complete in {:.0f}m {:.0f}s'.format(
                     #     time_elapsed // 60, time_elapsed % 60))
+                    max_lr = max(param_group["lr"] for param_group in optimizer.param_groups)
+                    logging.info("iteration: {}, max_lr: {}".format(iteration, max_lr))
 
                 # if batch_number >= BATCHES_PER_EPOCH:
                 #     batch_number = 0
@@ -148,8 +170,8 @@ def train_model(model, criterion, optimizer, scheduler, epochs):
 
                 if phase == 'train':
                     scheduler.step()
-                    max_lr = max(param_group["lr"] for param_group in optimizer.param_groups)
-                    logging.info("iteration: {}, max_lr: {}".format(iteration, max_lr))
+                    # max_lr = max(param_group["lr"] for param_group in optimizer.param_groups)
+                    # logging.info("iteration: {}, max_lr: {}".format(iteration, max_lr))
                     # print("iteration: {}, max_lr: {}".format(iteration, max_lr))
 
             if phase == "train":
@@ -211,7 +233,8 @@ if __name__ == '__main__':
     logging.info(f"Dataloaders Created, size of train_loader is: {len(train_loader.dataset)},"
                  f"val_loader is: {len(validation_loader.dataset)}")
 
-    model = DeepfakeClassifier()
+    # model = DeepfakeClassifier()
+    model = MyResNeXt()
 
     logging.info("Model is initialised")
 
@@ -223,6 +246,7 @@ if __name__ == '__main__':
     # model._fc = nn.Linear(1280, 1)
 
     model = model.to(gpu)
+    freeze_until(model, "layer4.0.conv1.weight")
     criterion = F.binary_cross_entropy_with_logits
     optimizer_ft = optim.SGD(model.parameters(), lr=0.01, momentum=0.9, weight_decay=1e-4, nesterov=True)
     lr_scheduler = lr_scheduler.LambdaLR(optimizer_ft, lambda iteration: (MAX_ITERATIONS - iteration) / MAX_ITERATIONS)
