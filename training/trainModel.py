@@ -8,10 +8,11 @@ import time
 from training.augmentations import augmentation_pipeline, validation_augmentation_pipeline, transformation
 from training.trainUtilities import Unnormalize
 from utilities import NOISY_STUDENT_DIRECTORY, MODELS_DIECTORY, \
-    VALIDATION_DATAFRAME_PATH, TRAINING_DATAFRAME_PATH, RESNET_FOLDER
-from training.DeepfakeDataset import DeepfakeDataset
+    VALIDATION_DATAFRAME_PATH, TRAINING_DATAFRAME_PATH, RESNET_FOLDER, PAIR_REAL_DATAFRAME, PAIR_FAKE_DATAFRAME
+from training.DeepfakeDataset import DeepfakeDataset, ValidationDataset
 
 import torch
+from torch import distributions
 from timm.models.efficientnet import tf_efficientnet_b4_ns
 from torch.utils.data import DataLoader
 from torch.nn import functional as F, AdaptiveAvgPool2d, Dropout, Linear
@@ -76,7 +77,7 @@ def freeze_until(net, param_name):
 
 
 IMAGE_SIZE = 224
-BATCH_SIZE = 64
+BATCH_SIZE = 32
 
 MEAN = [0.485, 0.456, 0.406]
 STD = [0.229, 0.224, 0.225]
@@ -89,15 +90,16 @@ model_save_path = os.path.join(MODELS_DIECTORY, "lowest_loss_model.pth")
 
 
 def create_data_loaders(batch_size, num_workers):
-    train_df = pd.read_csv(TRAINING_DATAFRAME_PATH)
+    train_real_df = pd.read_csv(PAIR_REAL_DATAFRAME)
+    train_fake_df = pd.read_csv(PAIR_FAKE_DATAFRAME)
     val_df = pd.read_csv(VALIDATION_DATAFRAME_PATH)
 
-    train_dataset = DeepfakeDataset(train_df, augmentation_pipeline())
+    train_dataset = DeepfakeDataset(train_real_df, train_fake_df, augmentation_pipeline())
 
     train_loader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True,
                               num_workers=num_workers, pin_memory=True)
 
-    validation_dataset = DeepfakeDataset(val_df, validation_augmentation_pipeline())
+    validation_dataset = ValidationDataset(val_df, validation_augmentation_pipeline())
 
     validation_loader = DataLoader(validation_dataset, batch_size=batch_size, shuffle=False,
                                    num_workers=num_workers, pin_memory=True)
@@ -105,101 +107,98 @@ def create_data_loaders(batch_size, num_workers):
     return train_loader, validation_loader
 
 
+def evaluate(model, minimum_loss):
+    model.eval()
+    running_loss = 0
+
+    for images, labels in validation_loader:
+        with torch.no_grad():
+            images = images.to(gpu)
+            labels = labels.to(gpu)
+
+            outputs = model(images)
+            y_pred = outputs.squeeze()
+            labels = labels.type_as(y_pred)
+            loss = criterion(y_pred, labels)
+
+            running_loss += loss.item() * images.size(0)
+
+    total_loss = running_loss / dataset_size["val"]
+    logging.info('Validation Loss: {:4f}'.format(total_loss))
+
+    if total_loss < minimum_loss:
+        minimum_loss = total_loss
+
+    return minimum_loss
+
+
 def train_model(model, criterion, optimizer, scheduler, epochs):
     since = time.time()
-    # best_model_wts = copy.deepcopy(model.state_dict())
-    mimimum_loss = 10000000
+    minimum_loss = 10000000
     iteration = 0
     batch_number = 0
     for epoch in range(epochs):
         logging.info('Epoch {}/{}'.format(epoch, epochs - 1))
         logging.info('-' * 10)
-        # print('Epoch {}/{}'.format(epoch, epochs - 1))
-        # print('-' * 10)
-        # Each epoch has a training and validation phase
-        for phase in ['train', 'val']:
-            if phase == 'train':
-                model.train()  # Set model to training mode
-            else:
-                model.eval()  # Set model to evaluate mode
 
-            running_loss = 0
-            # Iterate over data.
-            for inputs, labels in dataloaders[phase]:
-                if phase == "train":
-                    iteration += 1
-                    batch_number += 1
+        model.train()  # Set model to training mode
 
-                inputs = inputs.to(gpu)
-                labels = labels.to(gpu)
+        running_training_loss = 0
+        for pairs in train_loader:
+            iteration += 1
+            batch_number += 1
+            fake_images = torch.cat(pairs['fake']).to(gpu)
+            real_images = torch.cat(pairs['real']).to(gpu)
+            target = probability_distribution.sample((len(fake_images),)).float().to(gpu)
+            fake_weight = target.view(-1, 1, 1, 1)
 
-                # zero the parameter gradients
-                optimizer.zero_grad()
+            input_tensor = (1.0 - fake_weight) * real_images + fake_weight * fake_images
 
-                # forward
-                # track history if only in train
-                with torch.set_grad_enabled(phase == 'train'):
-                    outputs = model(inputs)
-                    y_pred = outputs.squeeze()
-                    labels = labels.type_as(y_pred)
+            # zero the parameter gradients
+            optimizer.zero_grad()
 
-                    loss = criterion(y_pred, labels)
+            outputs = model(input_tensor)
+            y_pred = outputs.squeeze()
 
-                    # backward + optimize only if in training phase
-                    if phase == 'train':
-                        loss.backward()
-                        optimizer.step()
+            loss = criterion(y_pred, target)
 
-                # statistics
-                running_loss += loss.item() * inputs.size(0)
-                if batch_number % 500 == 0:
-                    logging.info("New 500 batches are evaluated")
-                    logging.info("Batch Number: {}".format(batch_number))
-                    # print("Batch Number: {}".format(batch_number))
-                    time_elapsed = time.time() - since
-                    logging.info('Training complete in {:.0f}m {:.0f}s'.format(
-                        time_elapsed // 60, time_elapsed % 60))
-                    # print('Training complete in {:.0f}m {:.0f}s'.format(
-                    #     time_elapsed // 60, time_elapsed % 60))
-                    max_lr = max(param_group["lr"] for param_group in optimizer.param_groups)
-                    logging.info("iteration: {}, max_lr: {}".format(iteration, max_lr))
+            loss.backward()
+            optimizer.step()
 
-                # if batch_number >= BATCHES_PER_EPOCH:
-                #     batch_number = 0
-                #     break
+            # statistics
+            running_training_loss += loss.item() * input_tensor.size(0)
+            if batch_number % 500 == 0:
+                logging.info("New 500 batches are evaluated")
+                logging.info("Batch Number: {}".format(batch_number))
+                time_elapsed = time.time() - since
+                logging.info('Training complete in {:.0f}m {:.0f}s'.format(
+                    time_elapsed // 60, time_elapsed % 60))
+                max_lr = max(param_group["lr"] for param_group in optimizer.param_groups)
+                logging.info("iteration: {}, max_lr: {}".format(iteration, max_lr))
 
-                if phase == 'train':
-                    scheduler.step()
-                    # max_lr = max(param_group["lr"] for param_group in optimizer.param_groups)
-                    # logging.info("iteration: {}, max_lr: {}".format(iteration, max_lr))
-                    # print("iteration: {}, max_lr: {}".format(iteration, max_lr))
+            scheduler.step()
 
-            if phase == "train":
-                epoch_loss = running_loss / dataset_size[phase]
-                # epoch_loss = running_loss / (BATCHES_PER_EPOCH * BATCH_SIZE) # Does not go through all size
-            else:
-                epoch_loss = running_loss / dataset_size[phase]
+        epoch_loss = running_training_loss / dataset_size["train"]
+        logging.info('Training Loss: {:.4f}'.format(epoch_loss))
+        history["train"].append(epoch_loss)
 
-            logging.info('{} Loss: {:.4f}'.format(phase, epoch_loss))
-            # print('{} Loss: {:.4f}'.format(phase, epoch_loss))
+        # Calculate Validation Loss
+        validation_loss = evaluate(model, minimum_loss)
+        history["val"].append(validation_loss)
+        logging.info(history)
 
-            # deep copy the model
-            if phase == 'val' and mimimum_loss > epoch_loss:
-                mimimum_loss = epoch_loss
-                logging.info("Minimum loss is: {}".format(mimimum_loss))
-                # best_model_wts = copy.deepcopy(model.state_dict())
-                torch.save(model.state_dict(), model_save_path)
-
-        # print()
+        # deep copy the model
+        if validation_loss < minimum_loss:
+            minimum_loss = validation_loss
+            logging.info("Minimum loss is: {}".format(minimum_loss))
+            # best_model_wts = copy.deepcopy(model.state_dict())
+            torch.save(model.state_dict(), model_save_path)
 
     time_elapsed = time.time() - since
-    # print('Training complete in {:.0f}m {:.0f}s'.format(
-    #     time_elapsed // 60, time_elapsed % 60))
-    # print('Loss: {:4f}'.format(mimimum_loss))
 
     logging.info('Training complete in {:.0f}m {:.0f}s'.format(
         time_elapsed // 60, time_elapsed % 60))
-    logging.info('Loss: {:4f}'.format(mimimum_loss))
+    logging.info('Loss: {:4f}'.format(minimum_loss))
 
     # load best model weights
     model.load_state_dict(torch.load(model_save_path))
@@ -207,9 +206,7 @@ def train_model(model, criterion, optimizer, scheduler, epochs):
 
 
 if __name__ == '__main__':
-
     handler = RotatingFileHandler(filename='../logs/training_log.log', maxBytes=20000000, backupCount=10)
-
     logging.basicConfig(level=logging.INFO,
                         format='%(asctime)s, %(name)s, %(levelname)s %(message)s',
                         datefmt='%H:%M:%S',
@@ -226,11 +223,11 @@ if __name__ == '__main__':
     }
 
     dataset_size = {
-        "train": len(train_loader.dataset),
+        "train": len(train_loader.dataset) * 2,
         "val": len(validation_loader.dataset)
     }
 
-    logging.info(f"Dataloaders Created, size of train_loader is: {len(train_loader.dataset)},"
+    logging.info(f"Dataloaders Created, size of train_loader is: {len(train_loader.dataset) * 2},"
                  f"val_loader is: {len(validation_loader.dataset)}")
 
     # model = DeepfakeClassifier()
@@ -250,7 +247,13 @@ if __name__ == '__main__':
     criterion = F.binary_cross_entropy_with_logits
     optimizer_ft = optim.SGD(model.parameters(), lr=0.01, momentum=0.9, weight_decay=1e-4, nesterov=True)
     lr_scheduler = lr_scheduler.LambdaLR(optimizer_ft, lambda iteration: (MAX_ITERATIONS - iteration) / MAX_ITERATIONS)
+    probability_distribution = distributions.beta.Beta(0.5, 0.5)
 
     logging.info("Training Begins")
+
+    history ={
+        "train": [],
+        "val": []
+    }
 
     model = train_model(model, criterion, optimizer_ft, lr_scheduler, 25)

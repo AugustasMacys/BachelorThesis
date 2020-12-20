@@ -4,10 +4,45 @@ import numpy as np
 from PIL import Image
 import re
 
+import cv2
+
+import albumentations.augmentations.functional as F
 from albumentations.pytorch.functional import img_to_tensor
 from torch.utils.data import Dataset
 
 from training.trainUtilities import MEAN, STD
+
+
+class ValidationDataset(Dataset):
+    """ Deepfake Validation Dataset """
+
+    def __init__(self, validation_dataframe, augmentations,
+                 image_size=224):
+
+        self.image_size = image_size
+
+        if 'index' in validation_dataframe:
+            del validation_dataframe['index']
+
+        self.validation_dataframe = validation_dataframe
+        self.augmentate = augmentations
+
+    def __getitem__(self, index):
+        row = self.validation_dataframe.iloc[index]
+        image_name = row["image_path"]
+        label = row["label"]
+
+        img = Image.open(image_name).convert("RGB")
+        img = np.array(img)
+
+        transformed_image = self.augmentate(image=img)["image"]
+        transformed_image = img_to_tensor(transformed_image, {"mean": MEAN,
+                                                              "std": STD})
+
+        return transformed_image, label
+
+    def __len__(self):
+        return len(self.validation_dataframe)
 
 
 class DeepfakeDataset(Dataset):
@@ -50,16 +85,30 @@ class DeepfakeDataset(Dataset):
         except FileNotFoundError:
             img_fake, _ = self.find_new_identifier_and_image(fake_image_name)
 
+        img_real = np.array(img_real)
+        img_fake = np.array(img_fake)
+        transformed_images = self.augmentate(image=img_real, image2=img_fake)
+        img_real = transformed_images["image"]
+        img_fake = transformed_images["image2"]
+        img_fake = F.resize(img_fake, height=224, width=224)
+        # print(img_real.shape)
+        # print(img_fake.shape)
+        # cv2.imwrite("test_real.png", img_real)
+        # cv2.imwrite("test_fake.png", img_fake)
+        img_real = img_to_tensor(img_real, {"mean": MEAN,
+                                            "std": STD})
+        img_fake = img_to_tensor(img_fake, {"mean": MEAN,
+                                            "std": STD})
 
-        img = np.array(img)
-        img = self.augmentate(image=img)["image"]
-        img = img_to_tensor(img, {"mean": MEAN,
-                                  "std": STD})
+        pair = {
+            "real": img_real,
+            "fake": img_fake
+        }
 
-        return img, label
+        return pair
 
     def __len__(self):
-        return len(self.df)
+        return len(self.real_df)
 
     def smallest_number_than(self, number, num_list):
         return min(num_list, key=lambda x: (abs(x - number), x))
