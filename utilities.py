@@ -150,49 +150,14 @@ if __name__ == '__main__':
         all_fake_videos.append(current_folder_fake_video_names)
         all_real_videos.append(current_folder_real_video_names)
 
-    len_lists_fakes = [len(item) for item in all_fake_videos]
-    len_lists_real = [len(item) for item in all_real_videos]
-
-    with open('lenFakes.txt', 'w') as f:
-        for item in len_lists_fakes:
-            f.write("%s\n" % item)
-
-    with open('lenReal.txt', 'w') as f:
-        for item in len_lists_real:
-            f.write("%s\n" % item)
-
     flat_fake = [item for sublist in all_fake_videos for item in sublist]
     flat_real = [item for sublist in all_real_videos for item in sublist]
-
-    # dataframe_dictionary = {
-    #     "fake_video_name": flat_fake,
-    #     "real_video_name": flat_real
-    # }
-    #
-    # images_dataframe = pd.DataFrame(dataframe_dictionary)
-    # images_dataframe = pd.DataFrame(images_dataframe.to_numpy().flatten())
-
-    # images_dataframe.rename({'0': "video_name"})
-    # images_dataframe["label"] = 0
 
     fake_dataframe = pd.DataFrame(flat_fake, columns=["video_name"])
     real_dataframe = pd.DataFrame(flat_real, columns=["video_name"])
 
     fake_dataframe["label"] = 1
     real_dataframe["label"] = 0
-    #
-    # final_dataframe = pd.concat([fake_dataframe, real_dataframe], ignore_index=True)
+
     real_dataframe.to_csv(os.path.join(PAIR_DATAFRAMES_DIRECTORY, "real_training_dataframe.csv"), index=False)
     fake_dataframe.to_csv(os.path.join(PAIR_DATAFRAMES_DIRECTORY, "fake_training_dataframe.csv"), index=False)
-
-    # fake_frame_faces = glob(os.path.join(TRAIN_FAKE_FACES_DIRECTORY, '*'))
-    # real_frame_faces = glob(os.path.join(TRAIN_REAL_FACES_DIRECTORY, '*'))
-    #
-    # training_faces_real = pd.DataFrame(real_frame_faces, columns=["image_path"])
-    # training_faces_fake = pd.DataFrame(fake_frame_faces, columns=["image_path"])
-    #
-    # training_faces_real["label"] = 0
-    # training_faces_fake["label"] = 1
-    #
-    # training_faces_dataframe = pd.concat([training_faces_real, training_faces_fake], ignore_index=True)
-    # training_faces_dataframe.to_csv(TRAINING_DATAFRAME_PATH, index=False)
