@@ -161,3 +161,6 @@ logs/
 trained_models/
 resnet_model/
 dataframes_pairs/
+inference/final_resnet.csv
+inference/scores.csv
+inference/test_inference.png

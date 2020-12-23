@@ -15,7 +15,7 @@ from utilities import MODELS_DIECTORY, VALIDATION_DIRECTORY
 model_save_path = os.path.join(MODELS_DIECTORY, "lowest_loss_model.pth")
 
 scores_path = "scores.csv"
-final_path = "final.csv"
+final_path = "final_resnet.csv"
 
 # error_files = ["4662.mp4", "4688.mp4", "4974.mp4", "5566.mp4", "5727.mp4", "5929.mp4", "6011.mp4", "6283.mp4",
 #                "6624.mp4", "6905.mp4", "7657.mp4", "7750.mp4",
@@ -86,6 +86,7 @@ class InferenceLoader:
 
                     resized_frame = isotropically_resize_image(frame, 224)
                     resized_frame = put_to_center(resized_frame, 224)
+                    cv2.imwrite("test_inference.png", resized_frame)
                     transformed_image = Image.fromarray(resized_frame[:, :, ::-1])
 
                     # normalise and apply prediction transform
@@ -148,7 +149,7 @@ class InferenceLoader:
         # Write just outgoing results just in case of CUDA: Memory Out of Space Error
         with open(scores_path, "w") as f:
             for key in self.score.keys():
-                f.write("%s,%s\n" % (key, self.score[key].item()))
+                f.write("%s,%s\n" % (key, self.score[key]))
 
 
 if __name__ == '__main__':
@@ -179,4 +180,4 @@ if __name__ == '__main__':
 
     with open(final_path, "w") as f:
         for key in loader.score.keys():
-            f.write("%s,%s\n" % (key, loader.score[key].item()))
+            f.write("%s,%s\n" % (key, loader.score[key]))

@@ -1,5 +1,5 @@
 import logging
-from logging.handlers import RotatingFileHandler
+import config_logger
 import os
 from functools import partial
 import pandas as pd
@@ -20,6 +20,8 @@ from torch.optim import lr_scheduler
 import torch.nn as nn
 import torch.optim as optim
 import torchvision.models as models
+
+log = logging.getLogger(__name__)
 
 # from efficientnet_pytorch import EfficientNet
 
@@ -89,6 +91,11 @@ unnormalize_transform = Unnormalize(MEAN, STD)
 model_save_path = os.path.join(MODELS_DIECTORY, "lowest_loss_model.pth")
 
 
+def collate_fn(batch):
+    batch = list(filter(lambda x: x is not None, batch))
+    return torch.utils.data.dataloader.default_collate(batch)
+
+
 def create_data_loaders(batch_size, num_workers):
     train_real_df = pd.read_csv(PAIR_REAL_DATAFRAME)
     train_fake_df = pd.read_csv(PAIR_FAKE_DATAFRAME)
@@ -96,8 +103,8 @@ def create_data_loaders(batch_size, num_workers):
 
     train_dataset = DeepfakeDataset(train_real_df, train_fake_df, augmentation_pipeline())
 
-    train_loader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True,
-                              num_workers=num_workers, pin_memory=True)
+    train_loader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True, num_workers=num_workers,
+                              pin_memory=True, collate_fn=collate_fn)
 
     validation_dataset = ValidationDataset(val_df, validation_augmentation_pipeline())
 
@@ -124,7 +131,7 @@ def evaluate(model, minimum_loss):
             running_loss += loss.item() * images.size(0)
 
     total_loss = running_loss / dataset_size["val"]
-    logging.info('Validation Loss: {:4f}'.format(total_loss))
+    log.info('Validation Loss: {:4f}'.format(total_loss))
 
     if total_loss < minimum_loss:
         minimum_loss = total_loss
@@ -138,21 +145,24 @@ def train_model(model, criterion, optimizer, scheduler, epochs):
     iteration = 0
     batch_number = 0
     for epoch in range(epochs):
-        logging.info('Epoch {}/{}'.format(epoch, epochs - 1))
-        logging.info('-' * 10)
+        log.info('Epoch {}/{}'.format(epoch, epochs - 1))
+        log.info('-' * 10)
 
         model.train()  # Set model to training mode
 
         running_training_loss = 0
+        total_examples = 0
         for pairs in train_loader:
             iteration += 1
             batch_number += 1
-            fake_images = torch.cat(pairs['fake']).to(gpu)
-            real_images = torch.cat(pairs['real']).to(gpu)
+            fake_images = pairs['fake'].to(gpu)
+            real_images = pairs['real'].to(gpu)
             target = probability_distribution.sample((len(fake_images),)).float().to(gpu)
             fake_weight = target.view(-1, 1, 1, 1)
 
             input_tensor = (1.0 - fake_weight) * real_images + fake_weight * fake_images
+            current_batch_size = input_tensor.shape[0]
+            total_examples += current_batch_size
 
             # zero the parameter gradients
             optimizer.zero_grad()
@@ -166,39 +176,39 @@ def train_model(model, criterion, optimizer, scheduler, epochs):
             optimizer.step()
 
             # statistics
-            running_training_loss += loss.item() * input_tensor.size(0)
+            running_training_loss += loss.item() * current_batch_size
             if batch_number % 500 == 0:
-                logging.info("New 500 batches are evaluated")
-                logging.info("Batch Number: {}".format(batch_number))
+                log.info("New 500 batches are evaluated")
+                log.info("Batch Number: {}".format(batch_number))
                 time_elapsed = time.time() - since
-                logging.info('Training complete in {:.0f}m {:.0f}s'.format(
+                log.info('Training complete in {:.0f}m {:.0f}s'.format(
                     time_elapsed // 60, time_elapsed % 60))
                 max_lr = max(param_group["lr"] for param_group in optimizer.param_groups)
-                logging.info("iteration: {}, max_lr: {}".format(iteration, max_lr))
+                log.info("iteration: {}, max_lr: {}".format(iteration, max_lr))
 
             scheduler.step()
 
-        epoch_loss = running_training_loss / dataset_size["train"]
-        logging.info('Training Loss: {:.4f}'.format(epoch_loss))
+        epoch_loss = running_training_loss / total_examples
+        log.info('Training Loss: {:.4f}'.format(epoch_loss))
         history["train"].append(epoch_loss)
 
         # Calculate Validation Loss
         validation_loss = evaluate(model, minimum_loss)
         history["val"].append(validation_loss)
-        logging.info(history)
+        log.info(history)
 
         # deep copy the model
         if validation_loss < minimum_loss:
             minimum_loss = validation_loss
-            logging.info("Minimum loss is: {}".format(minimum_loss))
+            log.info("Minimum loss is: {}".format(minimum_loss))
             # best_model_wts = copy.deepcopy(model.state_dict())
             torch.save(model.state_dict(), model_save_path)
 
     time_elapsed = time.time() - since
 
-    logging.info('Training complete in {:.0f}m {:.0f}s'.format(
+    log.info('Training complete in {:.0f}m {:.0f}s'.format(
         time_elapsed // 60, time_elapsed % 60))
-    logging.info('Loss: {:4f}'.format(minimum_loss))
+    log.info('Loss: {:4f}'.format(minimum_loss))
 
     # load best model weights
     model.load_state_dict(torch.load(model_save_path))
@@ -206,34 +216,29 @@ def train_model(model, criterion, optimizer, scheduler, epochs):
 
 
 if __name__ == '__main__':
-    handler = RotatingFileHandler(filename='../logs/training_log.log', maxBytes=20000000, backupCount=10)
-    logging.basicConfig(level=logging.INFO,
-                        format='%(asctime)s, %(name)s, %(levelname)s %(message)s',
-                        datefmt='%H:%M:%S',
-                        handlers=[handler])
+    # handler = RotatingFileHandler(filename='../logs/training_log.log', maxBytes=20000000, backupCount=10)
+    # logging.basicConfig(level=logging.INFO,
+    #                     format='%(asctime)s, %(name)s, %(levelname)s %(message)s',
+    #                     datefmt='%H:%M:%S',
+    #                     handlers=[handler])
     gpu = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
-    logging.info("Program Started")
-    logging.info(f"GPU value: {gpu}")
+    log.info("Program Started")
+    log.info(f"GPU value: {gpu}")
 
     train_loader, validation_loader = create_data_loaders(BATCH_SIZE, 6)
 
-    dataloaders = {
-        "train": train_loader,
-        "val": validation_loader
-    }
-
     dataset_size = {
-        "train": len(train_loader.dataset) * 2,
         "val": len(validation_loader.dataset)
     }
+    val_size = dataset_size["val"]
 
-    logging.info(f"Dataloaders Created, size of train_loader is: {len(train_loader.dataset) * 2},"
-                 f"val_loader is: {len(validation_loader.dataset)}")
+    log.info(f"Dataloaders Created")
+    log.info(f"Size of validation dataloader is {val_size}")
 
     # model = DeepfakeClassifier()
     model = MyResNeXt()
 
-    logging.info("Model is initialised")
+    log.info("Model is initialised")
 
     # model = EfficientNet.from_pretrained('efficientnet-b4', weights_path=NOISY_STUDENT_WEIGHTS_FILENAME,
     #                                      num_classes=1)
@@ -249,9 +254,9 @@ if __name__ == '__main__':
     lr_scheduler = lr_scheduler.LambdaLR(optimizer_ft, lambda iteration: (MAX_ITERATIONS - iteration) / MAX_ITERATIONS)
     probability_distribution = distributions.beta.Beta(0.5, 0.5)
 
-    logging.info("Training Begins")
+    log.info("Training Begins")
 
-    history ={
+    history = {
         "train": [],
         "val": []
     }

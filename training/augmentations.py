@@ -5,10 +5,16 @@ from torchvision import transforms
 from albumentations import (
     HorizontalFlip, GaussianBlur, HueSaturationValue, DualTransform, GaussNoise, OneOf,
     Compose, RandomBrightnessContrast, ImageCompression, ShiftScaleRotate,
-    PadIfNeeded, ToGray, FancyPCA, LongestMaxSize
+    PadIfNeeded, ToGray, FancyPCA
 )
 
 from training.trainUtilities import MEAN, STD
+
+
+gaussian_noise_transform = Compose([
+        GaussNoise(p=0.1)],
+        additional_targets={'image2': 'image'}
+    )
 
 
 def put_to_center(img, input_size):
@@ -53,7 +59,6 @@ class IsotropicResize(DualTransform):
 def augmentation_pipeline(size=224):
     return Compose([
         ImageCompression(quality_lower=60, quality_upper=100, p=0.5),
-        # GaussNoise(p=0.1),
         GaussianBlur(blur_limit=3, p=0.05),
         HorizontalFlip(),
         OneOf([

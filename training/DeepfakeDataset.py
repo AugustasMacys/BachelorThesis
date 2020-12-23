@@ -1,4 +1,5 @@
 from glob import glob
+import logging
 import os.path
 import numpy as np
 from PIL import Image
@@ -10,7 +11,10 @@ import albumentations.augmentations.functional as F
 from albumentations.pytorch.functional import img_to_tensor
 from torch.utils.data import Dataset
 
+from training.augmentations import gaussian_noise_transform, put_to_center
 from training.trainUtilities import MEAN, STD
+
+log = logging.getLogger(__name__)
 
 
 class ValidationDataset(Dataset):
@@ -36,6 +40,7 @@ class ValidationDataset(Dataset):
         img = np.array(img)
 
         transformed_image = self.augmentate(image=img)["image"]
+        transformed_image = put_to_center(transformed_image, 224)
         transformed_image = img_to_tensor(transformed_image, {"mean": MEAN,
                                                               "std": STD})
 
@@ -69,21 +74,31 @@ class DeepfakeDataset(Dataset):
 
         real_image_name = row_real["image_path"]
         fake_image_name = row_fake["image_path"]
-        current_identifier = -1
         try:
             img_real = Image.open(real_image_name).convert("RGB")
         except FileNotFoundError:
-            img_real, current_identifier = self.find_new_identifier_and_image(real_image_name)
-
+            log.info("Real Image not found")
+            return None
         try:
-            if current_identifier != -1:
-                new_current_identifier = int(re.findall(r'\d+', fake_image_name)[0])
-                fake_image_name = fake_image_name.replace(str(current_identifier), str(new_current_identifier))
-                current_identifier = -1
-
             img_fake = Image.open(fake_image_name).convert("RGB")
         except FileNotFoundError:
-            img_fake, _ = self.find_new_identifier_and_image(fake_image_name)
+            log.info("Fake Image not found")
+            return None
+        # current_identifier = -1
+        # try:
+        #     img_real = Image.open(real_image_name).convert("RGB")
+        # except FileNotFoundError:
+        #     img_real, current_identifier = self.find_new_identifier_and_image(real_image_name)
+        #
+        # try:
+        #     if current_identifier != -1:
+        #         new_current_identifier = int(re.findall(r'\d+', fake_image_name)[0])
+        #         fake_image_name = fake_image_name.replace(str(current_identifier), str(new_current_identifier))
+        #         current_identifier = -1
+        #
+        #     img_fake = Image.open(fake_image_name).convert("RGB")
+        # except FileNotFoundError:
+        #     img_fake, _ = self.find_new_identifier_and_image(fake_image_name)
 
         img_real = np.array(img_real)
         img_fake = np.array(img_fake)
@@ -91,6 +106,10 @@ class DeepfakeDataset(Dataset):
         img_real = transformed_images["image"]
         img_fake = transformed_images["image2"]
         img_fake = F.resize(img_fake, height=224, width=224)
+        gaussian_transformed_images = gaussian_noise_transform(image=img_real,
+                                                               image2=img_fake)
+        img_real = gaussian_transformed_images["image"]
+        img_fake = gaussian_transformed_images["image2"]
         # print(img_real.shape)
         # print(img_fake.shape)
         # cv2.imwrite("test_real.png", img_real)
