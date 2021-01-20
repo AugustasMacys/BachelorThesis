@@ -5,7 +5,7 @@ from torchvision import transforms
 from albumentations import (
     HorizontalFlip, GaussianBlur, HueSaturationValue, DualTransform, GaussNoise, OneOf,
     Compose, RandomBrightnessContrast, ImageCompression, ShiftScaleRotate,
-    PadIfNeeded, ToGray, FancyPCA
+    PadIfNeeded, ToGray, FancyPCA, MotionBlur, RandomCrop
 )
 
 from training.trainUtilities import MEAN, STD
@@ -60,6 +60,7 @@ def augmentation_pipeline(size=224):
     return Compose([
         ImageCompression(quality_lower=60, quality_upper=100, p=0.5),
         GaussianBlur(blur_limit=3, p=0.05),
+        MotionBlur(p=0.05),
         HorizontalFlip(),
         OneOf([
             IsotropicResize(max_side=size, interpolation_down=cv2.INTER_AREA, interpolation_up=cv2.INTER_CUBIC),

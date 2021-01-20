@@ -7,19 +7,20 @@ import insightface
 import numpy as np
 from PIL import Image
 import torch
+from skimage.filters import threshold_yen
+from skimage.exposure import rescale_intensity
 
 from training.augmentations import isotropically_resize_image, put_to_center, transformation
 from training.trainModel import MyResNeXt
 from utilities import MODELS_DIECTORY, VALIDATION_DIRECTORY
 
-model_save_path = os.path.join(MODELS_DIECTORY, "lowest_loss_model.pth")
+model_save_path = os.path.join(MODELS_DIECTORY, "lowest_loss_model_new.pth")
 
 scores_path = "scores.csv"
 final_path = "final_resnet.csv"
 
 # error_files = ["4662.mp4", "4688.mp4", "4974.mp4", "5566.mp4", "5727.mp4", "5929.mp4", "6011.mp4", "6283.mp4",
-#                "6624.mp4", "6905.mp4", "7657.mp4", "7750.mp4",
-#                "7050.mp4", "7121.mp4", "7298.mp4", "7370.mp4", "7391.mp4", "7468.mp4", "7534.mp4", "7608.mp4"]
+#                "6624.mp4", "6905.mp4", "7657.mp4", "7750.mp4", "7050.mp4", "7121.mp4", "7298.mp4", "7370.mp4", "7391.mp4", "7468.mp4", "7534.mp4", "7608.mp4"]
 
 
 class InferenceLoader:
@@ -65,7 +66,13 @@ class InferenceLoader:
 
                     bounding_box, landmarks = face_detector.detect(frame, threshold=0.7, scale=scale)
                     if bounding_box.shape[0] == 0:
-                        continue
+                        # make the image brighter
+                        yen_threshold = threshold_yen(frame)
+                        frame = rescale_intensity(frame, (0, yen_threshold), (0, 255))
+                        bounding_box, landmarks = face_detector.detect(frame, threshold=0.7, scale=scale)
+                        # if again nothing is found just move on
+                        if bounding_box.shape[0] == 0:
+                            continue
 
                     x_min = bounding_box[:, 0]
                     y_min = bounding_box[:, 1]

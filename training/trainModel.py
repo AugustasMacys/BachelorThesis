@@ -3,12 +3,14 @@ import config_logger
 import os
 from functools import partial
 import pandas as pd
+import pickle
 import time
 
 from training.augmentations import augmentation_pipeline, validation_augmentation_pipeline, transformation
 from training.trainUtilities import Unnormalize
 from utilities import NOISY_STUDENT_DIRECTORY, MODELS_DIECTORY, \
-    VALIDATION_DATAFRAME_PATH, TRAINING_DATAFRAME_PATH, RESNET_FOLDER, PAIR_REAL_DATAFRAME, PAIR_FAKE_DATAFRAME
+    VALIDATION_DATAFRAME_PATH, TRAINING_DATAFRAME_PATH, RESNET_FOLDER, PAIR_REAL_DATAFRAME, PAIR_FAKE_DATAFRAME, \
+    PAIR_REAL_DATAFRAME3, PAIR_FAKE_DATAFRAME3, PAIR_FAKE_DATAFRAME2, PAIR_REAL_DATAFRAME2
 from training.DeepfakeDataset import DeepfakeDataset, ValidationDataset
 
 import torch
@@ -25,8 +27,8 @@ log = logging.getLogger(__name__)
 
 # from efficientnet_pytorch import EfficientNet
 
-MAX_ITERATIONS = 80000
-BATCHES_PER_EPOCH = 8000
+MAX_ITERATIONS = 100000
+BATCHES_PER_EPOCH = 5000
 
 RESNET_WEIGHTS = os.path.join(RESNET_FOLDER, "resnext50_32x4d-7cdf4587.pth")
 
@@ -79,7 +81,7 @@ def freeze_until(net, param_name):
 
 
 IMAGE_SIZE = 224
-BATCH_SIZE = 32
+BATCH_SIZE = 28
 
 MEAN = [0.485, 0.456, 0.406]
 STD = [0.229, 0.224, 0.225]
@@ -88,7 +90,7 @@ NOISY_STUDENT_WEIGHTS_FILENAME = os.path.join(NOISY_STUDENT_DIRECTORY, "noisy-st
 
 unnormalize_transform = Unnormalize(MEAN, STD)
 
-model_save_path = os.path.join(MODELS_DIECTORY, "lowest_loss_model.pth")
+model_save_path = os.path.join(MODELS_DIECTORY, "lowest_loss_model3.pth")
 
 
 def collate_fn(batch):
@@ -99,9 +101,20 @@ def collate_fn(batch):
 def create_data_loaders(batch_size, num_workers):
     train_real_df = pd.read_csv(PAIR_REAL_DATAFRAME)
     train_fake_df = pd.read_csv(PAIR_FAKE_DATAFRAME)
+    train_real_df2 = pd.read_csv(PAIR_REAL_DATAFRAME2)
+    train_fake_df2 = pd.read_csv(PAIR_FAKE_DATAFRAME2)
+    train_real_df3 = pd.read_csv(PAIR_REAL_DATAFRAME3)
+    train_fake_df3 = pd.read_csv(PAIR_FAKE_DATAFRAME3)
+
+    result_real_df = pd.concat([train_real_df, train_real_df2, train_real_df3], ignore_index=True)
+    result_fake_df = pd.concat([train_fake_df, train_fake_df2, train_fake_df3], ignore_index=True)
+
     val_df = pd.read_csv(VALIDATION_DATAFRAME_PATH)
 
-    train_dataset = DeepfakeDataset(train_real_df, train_fake_df, augmentation_pipeline())
+    with open('non_existing_files', 'rb') as fp:
+        non_existing_files = pickle.load(fp)
+
+    train_dataset = DeepfakeDataset(result_real_df, result_fake_df, augmentation_pipeline(), non_existing_files)
 
     train_loader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True, num_workers=num_workers,
                               pin_memory=True, collate_fn=collate_fn)
@@ -143,8 +156,12 @@ def train_model(model, criterion, optimizer, scheduler, epochs):
     since = time.time()
     minimum_loss = 10000000
     iteration = 0
-    batch_number = 0
+
     for epoch in range(epochs):
+        batch_number = 0
+        if iteration == MAX_ITERATIONS:
+            break
+
         log.info('Epoch {}/{}'.format(epoch, epochs - 1))
         log.info('-' * 10)
 
@@ -161,6 +178,7 @@ def train_model(model, criterion, optimizer, scheduler, epochs):
             fake_weight = target.view(-1, 1, 1, 1)
 
             input_tensor = (1.0 - fake_weight) * real_images + fake_weight * fake_images
+
             current_batch_size = input_tensor.shape[0]
             total_examples += current_batch_size
 
@@ -186,7 +204,10 @@ def train_model(model, criterion, optimizer, scheduler, epochs):
                 max_lr = max(param_group["lr"] for param_group in optimizer.param_groups)
                 log.info("iteration: {}, max_lr: {}".format(iteration, max_lr))
 
-            scheduler.step()
+            if batch_number >= BATCHES_PER_EPOCH:
+                break
+
+            # scheduler.step()
 
         epoch_loss = running_training_loss / total_examples
         log.info('Training Loss: {:.4f}'.format(epoch_loss))
@@ -196,6 +217,7 @@ def train_model(model, criterion, optimizer, scheduler, epochs):
         validation_loss = evaluate(model, minimum_loss)
         history["val"].append(validation_loss)
         log.info(history)
+        scheduler.step()
 
         # deep copy the model
         if validation_loss < minimum_loss:
@@ -216,11 +238,6 @@ def train_model(model, criterion, optimizer, scheduler, epochs):
 
 
 if __name__ == '__main__':
-    # handler = RotatingFileHandler(filename='../logs/training_log.log', maxBytes=20000000, backupCount=10)
-    # logging.basicConfig(level=logging.INFO,
-    #                     format='%(asctime)s, %(name)s, %(levelname)s %(message)s',
-    #                     datefmt='%H:%M:%S',
-    #                     handlers=[handler])
     gpu = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
     log.info("Program Started")
     log.info(f"GPU value: {gpu}")
@@ -235,8 +252,8 @@ if __name__ == '__main__':
     log.info(f"Dataloaders Created")
     log.info(f"Size of validation dataloader is {val_size}")
 
-    # model = DeepfakeClassifier()
-    model = MyResNeXt()
+    model = DeepfakeClassifier()
+    # model = MyResNeXt()
 
     log.info("Model is initialised")
 
@@ -248,10 +265,11 @@ if __name__ == '__main__':
     # model._fc = nn.Linear(1280, 1)
 
     model = model.to(gpu)
-    freeze_until(model, "layer4.0.conv1.weight")
+    # freeze_until(model, "layer4.0.conv1.weight")
     criterion = F.binary_cross_entropy_with_logits
     optimizer_ft = optim.SGD(model.parameters(), lr=0.01, momentum=0.9, weight_decay=1e-4, nesterov=True)
-    lr_scheduler = lr_scheduler.LambdaLR(optimizer_ft, lambda iteration: (MAX_ITERATIONS - iteration) / MAX_ITERATIONS)
+    lr_scheduler = lr_scheduler.StepLR(optimizer_ft, step_size=1, gamma=0.9)
+    # lr_scheduler = lr_scheduler.LambdaLR(optimizer_ft, lambda iteration: (MAX_ITERATIONS - iteration) / MAX_ITERATIONS)
     probability_distribution = distributions.beta.Beta(0.5, 0.5)
 
     log.info("Training Begins")

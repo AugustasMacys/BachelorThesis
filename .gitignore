@@ -164,3 +164,9 @@ dataframes_pairs/
 inference/final_resnet.csv
 inference/scores.csv
 inference/test_inference.png
+/training_fake_faces3/
+/training_fake_faces2/
+gcloudstoragecommands.txt
+/kaggle_leaderboard_data/
+lowest_loss_model.pth
+lowest_loss_model3.pth
