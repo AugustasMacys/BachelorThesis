@@ -170,3 +170,4 @@ gcloudstoragecommands.txt
 /kaggle_leaderboard_data/
 lowest_loss_model.pth
 lowest_loss_model3.pth
+mask_xray/
