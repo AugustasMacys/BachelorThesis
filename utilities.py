@@ -15,12 +15,16 @@ REAL_VIDEO_SAMPLE_DIRECTORY = os.path.join(ROOT_DIR, "real_video_examples")
 TEST_VIDEO_READER_DIRETORY = os.path.join(ROOT_DIR, "test_video_reader")
 DATAFRAMES_DIRECTORY = os.path.join(ROOT_DIR, "dataframes")
 PAIR_DATAFRAMES_DIRECTORY = os.path.join(ROOT_DIR, "dataframes_pairs")
+PAIR_DATAFRAMES_UPDATED_DIRECTORY = os.path.join(ROOT_DIR, "dataframes_pairs_updated")
 PAIR_REAL_DATAFRAME = os.path.join(PAIR_DATAFRAMES_DIRECTORY, "real_crops.csv")
 PAIR_FAKE_DATAFRAME = os.path.join(PAIR_DATAFRAMES_DIRECTORY, "fake_crops.csv")
 PAIR_REAL_DATAFRAME2 = os.path.join(PAIR_DATAFRAMES_DIRECTORY, "real_crops2.csv")
 PAIR_FAKE_DATAFRAME2 = os.path.join(PAIR_DATAFRAMES_DIRECTORY, "fake_crops2.csv")
 PAIR_REAL_DATAFRAME3 = os.path.join(PAIR_DATAFRAMES_DIRECTORY, "real_crops3.csv")
 PAIR_FAKE_DATAFRAME3 = os.path.join(PAIR_DATAFRAMES_DIRECTORY, "fake_crops3.csv")
+PAIR_UPDATED_FAKE_DATAFRAME = os.path.join(PAIR_DATAFRAMES_UPDATED_DIRECTORY, "fake_crops.csv")
+PAIR_UPDATED_FAKE_DATAFRAME2 = os.path.join(PAIR_DATAFRAMES_UPDATED_DIRECTORY, "fake_crops2.csv")
+PAIR_UPDATED_FAKE_DATAFRAME3 = os.path.join(PAIR_DATAFRAMES_UPDATED_DIRECTORY, "fake_crops3.csv")
 NOISY_STUDENT_DIRECTORY = os.path.join(ROOT_DIR, "noisy_student_weights")
 MODELS_DIECTORY = os.path.join(ROOT_DIR, "trained_models")
 VALIDATION_DIRECTORY = os.path.join(ROOT_DIR, "data", "test")
@@ -37,6 +41,8 @@ RESNET_FOLDER = os.path.join(ROOT_DIR, "resnet_model")
 
 VALIDATION_DATAFRAME_PATH = os.path.join(DATAFRAMES_DIRECTORY, "faces_validation.csv")
 TRAINING_DATAFRAME_PATH = os.path.join(DATAFRAMES_DIRECTORY, "faces_training.csv")
+
+MASKS_FOLDER = os.path.join(ROOT_DIR, "mask_xray_fake")
 
 
 EFFICIENT_B0_SIZE = 224
