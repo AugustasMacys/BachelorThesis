@@ -6,6 +6,7 @@ import face_alignment
 import pandas as pd
 from tqdm import tqdm
 import os
+import pickle
 
 
 from utilities import MASKS_FOLDER, PAIR_UPDATED_REAL_DATAFRAME
@@ -17,8 +18,10 @@ def create_mask(path):
     height, width, _ = img.shape
     black_mask = np.zeros((height, width))
     preds = fa.get_landmarks(img)
+    if preds is None:
+        return path
     if len(preds) < 1:
-        return
+        return path
     points = preds[0]
     hull = ConvexHull(points)
     del preds
@@ -34,15 +37,21 @@ def create_mask(path):
 
     save_string = os.path.join(directory_to_create, identifier)
     cv2.imwrite(save_string, img)
+    return ""
 
 
 if __name__ == '__main__':
     fa = face_alignment.FaceAlignment(face_alignment.LandmarksType._2D, flip_input=False)
 
     # According to research paper, we create masks from real images
-    image_paths = pd.read_csv(PAIR_UPDATED_REAL_DATAFRAME).image_path
+    image_paths = pd.read_csv(PAIR_UPDATED_REAL_DATAFRAME).image_path[3337:]
 
+    files_without_mask = []
     with tqdm(total=len(image_paths)) as bar:
         for path in image_paths:
-            create_mask(path)
+            path = create_mask(path)
+            if path != "":
+                files_without_mask.append(path)
+                with open('files_without_mask', 'wb') as fp:
+                    pickle.dump(files_without_mask, fp)
             bar.update()
