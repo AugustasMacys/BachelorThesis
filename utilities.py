@@ -41,6 +41,7 @@ VALIDATION_DATAFRAME_PATH = os.path.join(DATAFRAMES_DIRECTORY, "faces_validation
 TRAINING_DATAFRAME_PATH = os.path.join(DATAFRAMES_DIRECTORY, "faces_training.csv")
 
 MASKS_FOLDER = os.path.join(ROOT_DIR, "mask_xray_fake")
+MASK_REAL_PATH = os.path.join(ROOT_DIR, "mask_xray_real", "black_mask.png")
 
 
 EFFICIENT_B0_SIZE = 224

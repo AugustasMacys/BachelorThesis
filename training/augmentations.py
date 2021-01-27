@@ -5,7 +5,7 @@ from torchvision import transforms
 from albumentations import (
     HorizontalFlip, GaussianBlur, HueSaturationValue, DualTransform, GaussNoise, OneOf,
     Compose, RandomBrightnessContrast, ImageCompression, ShiftScaleRotate,
-    PadIfNeeded, ToGray, FancyPCA, MotionBlur, RandomCrop
+    PadIfNeeded, ToGray, FancyPCA, MotionBlur, RandomCrop, VerticalFlip
 )
 
 from training.trainUtilities import MEAN, STD
@@ -75,17 +75,17 @@ def augmentation_pipeline(size=224):
     )
 
 
-# TO DO: come back to check if this makes sense
 def xray_augmentation_pipeline(size=224):
     return Compose([
-        HorizontalFlip(),
+        HorizontalFlip(p=0.2),
+        VerticalFlip(p=0.01),
         OneOf([
             IsotropicResize(max_side=size, interpolation_down=cv2.INTER_AREA, interpolation_up=cv2.INTER_CUBIC),
             IsotropicResize(max_side=size, interpolation_down=cv2.INTER_AREA, interpolation_up=cv2.INTER_LINEAR),
             IsotropicResize(max_side=size, interpolation_down=cv2.INTER_LINEAR, interpolation_up=cv2.INTER_LINEAR),
         ], p=1),
         PadIfNeeded(min_height=size, min_width=size, border_mode=cv2.BORDER_CONSTANT),
-        ShiftScaleRotate(shift_limit=0.1, scale_limit=0.2, rotate_limit=10, border_mode=cv2.BORDER_CONSTANT, p=0.5)],
+        ShiftScaleRotate(shift_limit=0.1, scale_limit=0.2, rotate_limit=10, border_mode=cv2.BORDER_CONSTANT, p=0.2)],
         additional_targets={'image2': 'image'}
     )
 
