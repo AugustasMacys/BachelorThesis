@@ -1,6 +1,7 @@
 from PIL import Image
 import logging
 import torch
+import os
 
 
 import numpy as np
@@ -16,6 +17,9 @@ from utilities import MASK_REAL_PATH
 
 log = logging.getLogger(__name__)
 
+MEAN = [0.485, 0.456, 0.406]
+STD = [0.229, 0.224, 0.225]
+
 
 class ToTensor(object):
     def __call__(self, image, target):
@@ -24,14 +28,25 @@ class ToTensor(object):
         return image, target
 
 
+class Normalize(object):
+    def __init__(self, mean, std):
+        self.mean = mean
+        self.std = std
+
+    def __call__(self, image, target):
+        image = F.normalize(image, mean=self.mean, std=self.std)
+        return image, target
+
+
+normalise = Normalize(mean=MEAN, std=STD)
+
+
 class XRayDataset(Dataset):
     """X-ray segmentation dataset"""
 
     def __init__(self, real_frames_dataframe, fake_frames_dataframe,
                  augmentations, mask_folder, image_size=224):
 
-        # # Should increase training speed as on second epoch will not need to catch exceptions
-        # self.non_existing_files = non_existing_files
         self.mask_folder = mask_folder
         self.image_size = image_size
         self.augmentate = augmentations
@@ -59,26 +74,42 @@ class XRayDataset(Dataset):
         # Always will exist
         mask_real = Image.open(MASK_REAL_PATH).convert("L")
 
+        folder_mask = real_image_name.split("\\")[3]
+        identifier_mask = real_image_name.split("\\")[4]
+        path_fake_mask = os.path.join(self.mask_folder, folder_mask, identifier_mask)
+
         # Might not exist
         try:
-            mask_fake = Image.open(fake_image_name).convert("L")
+            mask_fake = Image.open(path_fake_mask).convert("L")
         except FileNotFoundError:
-            log.info("Fake Mask not found: {}".format(fake_image_name))
+            log.info("Fake Mask not found: {}".format(path_fake_mask))
             return None
 
         mask_real = np.array(mask_real)
         mask_fake = np.array(mask_fake)
-        # I decided to transform both masks the same way
-        transformed_images = self.augmentate(image=mask_real, image2=mask_fake)
-        mask_real = transformed_images["image"]
-        mask_fake = transformed_images["image2"]
+        transformed_real_images = self.augmentate(image=img_real, image2=mask_real)
+        img_real = transformed_real_images["image"]
+        mask_real = transformed_real_images["image2"]
+        # due to isotropic resize need to resize mask
+        mask_real = albumentations_F.resize(mask_real, height=224, width=224)
+
+        transformed_fake_images = self.augmentate(image=img_fake, image2=mask_fake)
+        img_fake = transformed_real_images["image"]
+        mask_fake = transformed_real_images["image2"]
+        # due to isotropic resize need to resize mask
         mask_fake = albumentations_F.resize(mask_fake, height=224, width=224)
 
-        # Just transform between 0 and 1 or smth
+        img_real, mask_real = ToTensor(image=img_real, target=mask_real)
+        img_fake, mask_fake = ToTensor(image=img_fake, target=mask_fake)
+
+        img_real, mask_real = normalise(image=img_real, target=mask_real)
+        img_fake, mask_fake = normalise(image=img_fake, target=mask_fake)
 
         images_with_masks = {
-            "real": mask_real,
-            "fake": mask_fake
+            "real_mask": mask_real,
+            "fake_mask": mask_fake,
+            "real_image": img_real,
+            "fake_image": img_fake
         }
 
         return images_with_masks
