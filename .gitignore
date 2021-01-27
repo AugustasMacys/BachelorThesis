@@ -174,3 +174,4 @@ mask_xray/
 dataframes_pairs_updated/
 mask_xray_fake/
 mask_xray_real/
+xray/files_without_mask

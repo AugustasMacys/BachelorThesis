@@ -49,6 +49,13 @@ class XRayDataset(Dataset):
 
         self.mask_folder = mask_folder
         self.image_size = image_size
+
+        if 'index' in real_frames_dataframe:
+            del real_frames_dataframe['index']
+
+        if 'index' in fake_frames_dataframe:
+            del fake_frames_dataframe['index']
+
         self.augmentate = augmentations
         self.real_df = real_frames_dataframe
         self.fake_df = fake_frames_dataframe

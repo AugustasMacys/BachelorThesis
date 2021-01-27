@@ -98,7 +98,7 @@ def collate_fn(batch):
     return torch.utils.data.dataloader.default_collate(batch)
 
 
-def create_data_loaders(batch_size, num_workers):
+def create_data_loaders(batch_size, num_workers, non_existing_files=None):
     train_real_df = pd.read_csv(PAIR_REAL_DATAFRAME)
     train_fake_df = pd.read_csv(PAIR_FAKE_DATAFRAME)
     train_real_df2 = pd.read_csv(PAIR_REAL_DATAFRAME2)
@@ -111,8 +111,9 @@ def create_data_loaders(batch_size, num_workers):
 
     val_df = pd.read_csv(VALIDATION_DATAFRAME_PATH)
 
-    with open('non_existing_files', 'rb') as fp:
-        non_existing_files = pickle.load(fp)
+    if non_existing_files is not None:
+        with open('non_existing_files', 'rb') as fp:
+            non_existing_files = pickle.load(fp)
 
     train_dataset = DeepfakeDataset(result_real_df, result_fake_df, augmentation_pipeline(), non_existing_files)
 
