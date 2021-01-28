@@ -12,6 +12,9 @@ from training.trainModel import collate_fn
 
 from utilities import MODELS_DIECTORY
 
+from xray.cnnB import get_seg_model
+from xray.cnnC import get_nnc
+
 
 log = logging.getLogger(__name__)
 
@@ -32,12 +35,13 @@ def evaluate_xray(model, minimum_loss):
 
 
 
-def train_xray(epochs, scheduler, model, dataloaders):
+def train_xray(epochs, scheduler, modelb, modelc, dataloaders):
     since = time.time()
     minimum_loss = 0.69  # loss of guessing of 0.5 to everything
     iteration = 0
     for epoch in range(epochs):
-        model.train()
+        modelb.train()
+        modelc.train()
 
         if iteration == MAX_ITERATIONS:
             break
@@ -67,8 +71,14 @@ def train_xray(epochs, scheduler, model, dataloaders):
 
             optimizer.zero_grad()
 
-            output_real = model(img_real.unsqueeze(1))
-            output_fake = model(img_fake.unsqueeze(1))
+            real_x_ray = modelb(img_real.unsqueeze(1))
+            fake_x_ray = modelb(img_fake.unsqueeze(1))
+            prediction_real = modelc(real_x_ray)
+            prediction_fake = modelc(fake_x_ray)
+            with torch.no_grad():
+                prediction_real = torch.softmax(prediction_real, dim=1)
+                prediction_fake = torch.softmax(prediction_fake, dim=1)
+
             curr_loss_real = criterion(output_real, mask_real)
             curr_loss_fake = criterion(output_fake, mask_fake)
             loss = (curr_loss_real + curr_loss_fake) / 2
@@ -116,23 +126,30 @@ def train_xray(epochs, scheduler, model, dataloaders):
         return model
 
 
-
 if __name__ == '__main__':
     gpu = torch.device('cuda:0' if torch.cuda.is_available() else 'cpu')
 
-    segmentation_model = smp.DeepLabV3Plus(
-        encoder_name="timm-efficientnet-b4",
-        encoder_depth=3,
-        encoder_weights="noisy-student",
-        classes=2,
-        in_channels=1
-    )
+    # segmentation_model = smp.DeepLabV3Plus(
+    #     encoder_name="timm-efficientnet-b4",
+    #     encoder_depth=3,
+    #     encoder_weights="noisy-student",
+    #     classes=2,
+    #     in_channels=1
+    # )
+
+    model_cnnB = get_seg_model(cfg="pass")
+    model_nnc = get_nnc(config="pass")
+
+    model_cnnB.to(gpu)
+    model_nnc.to(gpu)
+
+    model_cnnB.module.pretrained_grad()
 
     batch_size = 16
-    input_example = torch.autograd.Variable(torch.randn(batch_size, 1, 224, 224))
-    output = segmentation_model(input_example)
-    # Two because two classes one for black and one for white
-    assert output.size() == torch.Size([batch_size, 2, 224, 224]), "Model outputs incorrect shape"
+    # input_example = torch.autograd.Variable(torch.randn(batch_size, 1, 224, 224))
+    # output = segmentation_model(input_example)
+    # # Two because two classes one for black and one for white
+    # assert output.size() == torch.Size([batch_size, 2, 224, 224]), "Model outputs incorrect shape"
 
     log.info("Model is initialised")
 

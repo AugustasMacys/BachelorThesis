@@ -15,7 +15,7 @@ import torch.nn.functional as F
 
 BatchNorm2d = nn.BatchNorm2d
 BN_MOMENTUM = 0.01
-logger = logging.getLogger(__name__)
+log = logging.getLogger(__name__)
 
 
 def conv3x3(in_planes, out_planes, stride=1):
@@ -120,19 +120,19 @@ class HighResolutionModule(nn.Module):
         if num_branches != len(num_blocks):
             error_msg = 'NUM_BRANCHES({}) <> NUM_BLOCKS({})'.format(
                 num_branches, len(num_blocks))
-            logger.error(error_msg)
+            log.error(error_msg)
             raise ValueError(error_msg)
 
         if num_branches != len(num_channels):
             error_msg = 'NUM_BRANCHES({}) <> NUM_CHANNELS({})'.format(
                 num_branches, len(num_channels))
-            logger.error(error_msg)
+            log.error(error_msg)
             raise ValueError(error_msg)
 
         if num_branches != len(num_inchannels):
             error_msg = 'NUM_BRANCHES({}) <> NUM_INCHANNELS({})'.format(
                 num_branches, len(num_inchannels))
-            logger.error(error_msg)
+            log.error(error_msg)
             raise ValueError(error_msg)
 
     def _make_one_branch(self, branch_index, block, num_blocks, num_channels,
@@ -449,7 +449,7 @@ class HighResolutionNet(nn.Module):
         return x
 
     def init_weights(self, pretrained='', ):
-        logger.info('=> init weights from normal distribution')
+        log.info('=> init weights from normal distribution')
         for m in self.modules():
             if isinstance(m, nn.Conv2d):
                 nn.init.normal_(m.weight, std=0.001)
@@ -458,7 +458,7 @@ class HighResolutionNet(nn.Module):
                 nn.init.constant_(m.bias, 0)
         if os.path.isfile(pretrained):
             pretrained_dict = torch.load(pretrained)
-            logger.info('=> loading pretrained model {}'.format(pretrained))
+            log.info('=> loading pretrained model {}'.format(pretrained))
             model_dict = self.state_dict()
             pretrained_dict = {k: v for k, v in pretrained_dict.items()
                                if k in model_dict.keys()}
