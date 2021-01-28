@@ -5,24 +5,39 @@ from torch.nn import functional as F
 from torch.optim import lr_scheduler
 import logging
 import time
+import os
 
 from training.trainModel import create_data_loaders
 from training.trainModel import collate_fn
+
+from utilities import MODELS_DIECTORY
 
 
 log = logging.getLogger(__name__)
 
 
 MAX_ITERATIONS = 200000
+BATCHES_PER_EPOCH = 5000
+
+X_RAY_MODEL_SAVE_PATH = os.path.join(MODELS_DIECTORY, "x_ray_model.pth")
 
 
-def evaluate_xray():
-    pass
+def evaluate_xray(model, minimum_loss):
+    model.eval()
+    running_loss = 0
+
+    for val_batch_iteration, pair in enumerate(dataloaders["val"]):
+        pass # Need to implement nnc
+
+
 
 
 def train_xray(epochs, scheduler, model, dataloaders):
     since = time.time()
+    minimum_loss = 0.69  # loss of guessing of 0.5 to everything
+    iteration = 0
     for epoch in range(epochs):
+        model.train()
 
         if iteration == MAX_ITERATIONS:
             break
@@ -33,68 +48,72 @@ def train_xray(epochs, scheduler, model, dataloaders):
         total_examples_real = 0
         total_examples_fake = 0
 
-        for phase in ['train', 'val']:
-            if phase == 'train':
-                model.train()
-            else:
-                model.eval()
+        running_fake_loss = 0
+        running_real_loss = 0
 
-            running_fake_loss = 0
-            running_real_loss = 0
+        for batch_iteration, pair in enumerate(dataloaders["train"]):
+            iteration += 1
 
-            for iteration, pair in enumerate(dataloaders[phase]):
-                img_real = pair["real_image"]
-                mask_real = pair["real_mask"]
+            img_real = pair["real_image"]
+            mask_real = pair["real_mask"]
 
-                img_fake = pair["fake_image"]
-                mask_fake = pair["fake_mask"]
+            img_fake = pair["fake_image"]
+            mask_fake = pair["fake_mask"]
 
-                img_real = img_real.to(gpu)
-                mask_real = mask_real.to(gpu)
-                img_fake = img_fake.to(gpu)
-                mask_fake = mask_fake.to(gpu)
+            img_real = img_real.to(gpu)
+            mask_real = mask_real.to(gpu)
+            img_fake = img_fake.to(gpu)
+            mask_fake = mask_fake.to(gpu)
 
-                optimizer.zero_grad()
+            optimizer.zero_grad()
 
-                with torch.set_grad_enabled(phase == "train"):
-                    output_real = model(img_real.unsqueeze(1))
-                    output_fake = model(img_fake.unsqueeze(1))
-                    curr_loss_real = criterion(output_real, mask_real)
-                    curr_loss_fake = criterion(output_fake, mask_fake)
-                    loss = (curr_loss_real + curr_loss_fake) / 2
-                    if phase == "train":
-                        loss.backward()
-                        optimizer.step()
+            output_real = model(img_real.unsqueeze(1))
+            output_fake = model(img_fake.unsqueeze(1))
+            curr_loss_real = criterion(output_real, mask_real)
+            curr_loss_fake = criterion(output_fake, mask_fake)
+            loss = (curr_loss_real + curr_loss_fake) / 2
 
-                total_examples_real += img_real.size(0)
-                total_examples_fake += img_fake.size(0)
+            loss.backward()
+            optimizer.step()
 
-                running_fake_loss += curr_loss_fake.item() * img_fake.size(0)
-                running_real_loss += curr_loss_real.item() * img_real.size(0)
+            total_examples_real += img_real.size(0)
+            total_examples_fake += img_fake.size(0)
 
-                if iteration % 250 == 0:
-                    log.info("New 250 batches are evaluated")
-                    log.info("Batch Number: {}".format(iteration))
-                    time_elapsed = time.time() - since
-                    log.info('Training complete in {:.0f}m {:.0f}s'.format(
-                        time_elapsed // 60, time_elapsed % 60))
-                    max_lr = max(param_group["lr"] for param_group in optimizer.param_groups)
-                    log.info("iteration: {}, max_lr: {}".format(iteration, max_lr))
+            running_fake_loss += curr_loss_fake.item() * img_fake.size(0)
+            running_real_loss += curr_loss_real.item() * img_real.size(0)
 
-                if iteration >= BATCHES_PER_EPOCH:
-                    break
+            if batch_iteration % 250 == 0:
+                log.info("New 250 batches are evaluated")
+                log.info("Batch Number: {}".format(batch_iteration))
+                time_elapsed = time.time() - since
+                log.info('Training complete in {:.0f}m {:.0f}s'.format(
+                    time_elapsed // 60, time_elapsed % 60))
+                max_lr = max(param_group["lr"] for param_group in optimizer.param_groups)
+                log.info("iteration: {}, max_lr: {}".format(batch_iteration, max_lr))
 
-            if phase == 'train':
-                # learning rate scheduler
-                scheduler.step()
+            if batch_iteration >= BATCHES_PER_EPOCH:
+                break
 
-            epoch_loss = (running_fake_loss + running_real_loss) / (total_examples_real + total_examples_fake)
-            log.info('Training Loss: {:.4f}'.format(epoch_loss))
-            history["train"].append(epoch_loss)
+        scheduler.step()
 
-            validation_loss = evaluate(model, minimum_loss)
-            history["val"].append(validation_loss)
-            log.info(history)
+        epoch_loss = (running_fake_loss + running_real_loss) / (total_examples_real + total_examples_fake)
+        log.info('Training Loss: {:.4f}'.format(epoch_loss))
+        history["train"].append(epoch_loss)
+
+        validation_loss = evaluate_xray(model, minimum_loss)
+        history["val"].append(validation_loss)
+        log.info(history)
+
+        if validation_loss < minimum_loss:
+            minimum_loss = validation_loss
+            log.info("Minimum loss is: {}".format(minimum_loss))
+            torch.save(model.state_dict(), X_RAY_MODEL_SAVE_PATH)
+
+        log.info('Training complete in {:.0f}m {:.0f}s'.format(
+            time_elapsed // 60, time_elapsed % 60))
+        log.info('Loss: {:4f}'.format(minimum_loss))
+
+        return model
 
 
 

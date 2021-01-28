@@ -101,8 +101,8 @@ class XRayDataset(Dataset):
         mask_real = albumentations_F.resize(mask_real, height=224, width=224)
 
         transformed_fake_images = self.augmentate(image=img_fake, image2=mask_fake)
-        img_fake = transformed_real_images["image"]
-        mask_fake = transformed_real_images["image2"]
+        img_fake = transformed_fake_images["image"]
+        mask_fake = transformed_fake_images["image2"]
         # due to isotropic resize need to resize mask
         mask_fake = albumentations_F.resize(mask_fake, height=224, width=224)
 
