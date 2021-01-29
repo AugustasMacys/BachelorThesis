@@ -1,17 +1,18 @@
 import torch
-from torch.nn import functional as F
 from torch.optim import lr_scheduler
 import logging
 import time
 import os
 
 from training.trainModel import create_data_loaders
-from training.trainModel import collate_fn
 
 from utilities import MODELS_DIECTORY
 
 from xray.cnnB import get_seg_model
 from xray.cnnC import get_nnc
+
+
+from x_ray_config import config
 
 
 log = logging.getLogger(__name__)
@@ -20,7 +21,8 @@ log = logging.getLogger(__name__)
 MAX_ITERATIONS = 200000
 BATCHES_PER_EPOCH = 5000
 
-X_RAY_MODEL_SAVE_PATH = os.path.join(MODELS_DIECTORY, "x_ray_model.pth")
+X_RAY_MODEL_SAVE_PATH_B = os.path.join(MODELS_DIECTORY, "x_ray_model_B.pth")
+X_RAY_MODEL_SAVE_PATH_C = os.path.join(MODELS_DIECTORY, "x_ray_model_C.pth")
 
 
 def evaluate_and_test_xray(model_nnb, model_nnc, criterion_nnc, minimum_loss):
@@ -48,7 +50,7 @@ def evaluate_and_test_xray(model_nnb, model_nnc, criterion_nnc, minimum_loss):
     return minimum_loss
 
 
-def train_xray(epochs, scheduler, modelb, modelc, dataloaders, criterion_nnb, criterion_nnc):
+def train_xray(epochs, scheduler, optimizer, modelb, modelc, dataloaders, criterion_nnb, criterion_nnc):
     since = time.time()
     minimum_loss = 0.69  # loss of guessing of 0.5 to everything
     iteration = 0
@@ -102,6 +104,9 @@ def train_xray(epochs, scheduler, modelb, modelc, dataloaders, criterion_nnb, cr
             loss.backward()
             optimizer.step()
 
+            if iteration > 150000:
+                scheduler.step()
+
             total_examples_real += img_real.size(0)
             total_examples_fake += img_fake.size(0)
 
@@ -123,8 +128,6 @@ def train_xray(epochs, scheduler, modelb, modelc, dataloaders, criterion_nnb, cr
             if batch_iteration >= BATCHES_PER_EPOCH:
                 break
 
-        scheduler.step()
-
         epoch_loss = (running_fake_loss + running_real_loss) / (total_examples_real + total_examples_fake)
         log.info('Training Loss: {:.4f}'.format(epoch_loss))
         history["train"].append(epoch_loss)
@@ -136,17 +139,22 @@ def train_xray(epochs, scheduler, modelb, modelc, dataloaders, criterion_nnb, cr
         if validation_loss < minimum_loss:
             minimum_loss = validation_loss
             log.info("Minimum loss is: {}".format(minimum_loss))
-            torch.save(model.state_dict(), X_RAY_MODEL_SAVE_PATH)
+            torch.save(modelc.state_dict(), X_RAY_MODEL_SAVE_PATH_B)
+            torch.save(modelc.state_dict(), X_RAY_MODEL_SAVE_PATH_C)
 
         log.info('Training complete in {:.0f}m {:.0f}s'.format(
             time_elapsed // 60, time_elapsed % 60))
         log.info('Loss: {:4f}'.format(minimum_loss))
 
-        return model
+        return
 
 
 if __name__ == '__main__':
     gpu = torch.device('cuda:0' if torch.cuda.is_available() else 'cpu')
+
+    print(config.MODEL.NAME)
+
+    exit(0)
 
     # segmentation_model = smp.DeepLabV3Plus(
     #     encoder_name="timm-efficientnet-b4",
@@ -156,6 +164,11 @@ if __name__ == '__main__':
     #     in_channels=1
     # )
 
+    # input_example = torch.autograd.Variable(torch.randn(batch_size, 1, 224, 224))
+    # output = segmentation_model(input_example)
+    # # Two because two classes one for black and one for white
+    # assert output.size() == torch.Size([batch_size, 2, 224, 224]), "Model outputs incorrect shape"
+
     model_nnb = get_seg_model(cfg="pass")
     model_nnc = get_nnc(config="pass")
 
@@ -163,10 +176,7 @@ if __name__ == '__main__':
     model_nnc.to(gpu)
 
     batch_size = 16
-    # input_example = torch.autograd.Variable(torch.randn(batch_size, 1, 224, 224))
-    # output = segmentation_model(input_example)
-    # # Two because two classes one for black and one for white
-    # assert output.size() == torch.Size([batch_size, 2, 224, 224]), "Model outputs incorrect shape"
+    epochs = 25
 
     log.info("Models are initialised")
 
@@ -180,13 +190,14 @@ if __name__ == '__main__':
     dataset_size = {
         "val": len(validation_loader.dataset)
     }
+
     log.info(f"Dataloaders Created")
 
     criterion_nnb = torch.nn.BCEWithLogitsLoss()
     criterion_nnc = torch.nn.CrossEntropyLoss()
-    
-    optimizer = torch.optim.Adam(segmentation_model.parameters(), lr=0.001,
-                                 betas=(0.9, 0.999), eps=1e-08, weight_decay=0, amsgrad=False)
+
+    optimizer = torch.optim.Adam(list(model_nnb.parameters()) + list(model_nnc.parameters()),
+                                 lr=0.0002, betas=(0.9, 0.999), eps=1e-08, weight_decay=0, amsgrad=False)
     lr_scheduler = lr_scheduler.StepLR(optimizer, step_size=1, gamma=0.9)
 
     history = {
@@ -194,4 +205,4 @@ if __name__ == '__main__':
         "val": []
     }
 
-    segmentation_model.to(gpu)
+    train_xray(epochs, lr_scheduler, optimizer, model_nnb, model_nnc, dataloaders, criterion_nnb, criterion_nnc)
