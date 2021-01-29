@@ -6,12 +6,15 @@ import pandas as pd
 import pickle
 import time
 
-from training.augmentations import augmentation_pipeline, validation_augmentation_pipeline, transformation
+from training.augmentations import augmentation_pipeline, validation_augmentation_pipeline, transformation, \
+    xray_augmentation_pipeline
 from training.trainUtilities import Unnormalize
 from utilities import NOISY_STUDENT_DIRECTORY, MODELS_DIECTORY, \
     VALIDATION_DATAFRAME_PATH, TRAINING_DATAFRAME_PATH, RESNET_FOLDER, PAIR_REAL_DATAFRAME, PAIR_FAKE_DATAFRAME, \
-    PAIR_REAL_DATAFRAME3, PAIR_FAKE_DATAFRAME3, PAIR_FAKE_DATAFRAME2, PAIR_REAL_DATAFRAME2
+    PAIR_REAL_DATAFRAME3, PAIR_FAKE_DATAFRAME3, PAIR_FAKE_DATAFRAME2, PAIR_REAL_DATAFRAME2, MASKS_FOLDER
 from training.DeepfakeDataset import DeepfakeDataset, ValidationDataset
+
+from xray.Dataset_XRay import XRayDataset
 
 import torch
 from torch import distributions
@@ -98,7 +101,7 @@ def collate_fn(batch):
     return torch.utils.data.dataloader.default_collate(batch)
 
 
-def create_data_loaders(batch_size, num_workers, non_existing_files=None):
+def create_data_loaders(batch_size, num_workers, non_existing_files=None, X_RAY=False):
     train_real_df = pd.read_csv(PAIR_REAL_DATAFRAME)
     train_fake_df = pd.read_csv(PAIR_FAKE_DATAFRAME)
     train_real_df2 = pd.read_csv(PAIR_REAL_DATAFRAME2)
@@ -115,10 +118,18 @@ def create_data_loaders(batch_size, num_workers, non_existing_files=None):
         with open('non_existing_files', 'rb') as fp:
             non_existing_files = pickle.load(fp)
 
-    train_dataset = DeepfakeDataset(result_real_df, result_fake_df, augmentation_pipeline(), non_existing_files)
+    if X_RAY:
+        train_dataset = XRayDataset(result_real_df, result_fake_df, xray_augmentation_pipeline(),
+                                    MASKS_FOLDER)
 
-    train_loader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True, num_workers=num_workers,
-                              pin_memory=True, collate_fn=collate_fn)
+        train_loader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True, num_workers=num_workers,
+                                  pin_memory=True, collate_fn=collate_fn)
+
+    else:
+        train_dataset = DeepfakeDataset(result_real_df, result_fake_df, augmentation_pipeline(), non_existing_files)
+
+        train_loader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True, num_workers=num_workers,
+                                  pin_memory=True, collate_fn=collate_fn)
 
     validation_dataset = ValidationDataset(val_df, validation_augmentation_pipeline())
 

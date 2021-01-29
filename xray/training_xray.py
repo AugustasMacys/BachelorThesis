@@ -1,5 +1,3 @@
-import segmentation_models_pytorch as smp
-
 import torch
 from torch.nn import functional as F
 from torch.optim import lr_scheduler
@@ -25,17 +23,32 @@ BATCHES_PER_EPOCH = 5000
 X_RAY_MODEL_SAVE_PATH = os.path.join(MODELS_DIECTORY, "x_ray_model.pth")
 
 
-def evaluate_xray(model, minimum_loss):
-    model.eval()
+def evaluate_and_test_xray(model_nnb, model_nnc, criterion_nnc, minimum_loss):
+    model_nnb.eval()
+    model_nnc.eval()
     running_loss = 0
 
-    for val_batch_iteration, pair in enumerate(dataloaders["val"]):
-        pass # Need to implement nnc
+    for images, labels in dataloaders["val"]:
+        with torch.no_grad():
+            images = images.to(gpu)
+            labels = labels.to(gpu)
+
+            face_x_rays = model_nnb(images)
+            classifications = model_nnc(face_x_rays)
+
+            loss_nnc = criterion_nnc(classifications, labels)
+            running_loss += loss_nnc.item() * images.size(0)
+
+    total_loss = running_loss / dataset_size["val"]
+    log.info('Validation Loss: {:4f}'.format(total_loss))
+
+    if total_loss < minimum_loss:
+        minimum_loss = total_loss
+
+    return minimum_loss
 
 
-
-
-def train_xray(epochs, scheduler, modelb, modelc, dataloaders):
+def train_xray(epochs, scheduler, modelb, modelc, dataloaders, criterion_nnb, criterion_nnc):
     since = time.time()
     minimum_loss = 0.69  # loss of guessing of 0.5 to everything
     iteration = 0
@@ -75,19 +88,25 @@ def train_xray(epochs, scheduler, modelb, modelc, dataloaders):
             fake_x_ray = modelb(img_fake.unsqueeze(1))
             prediction_real = modelc(real_x_ray)
             prediction_fake = modelc(fake_x_ray)
-            with torch.no_grad():
-                prediction_real = torch.softmax(prediction_real, dim=1)
-                prediction_fake = torch.softmax(prediction_fake, dim=1)
 
-            curr_loss_real = criterion(output_real, mask_real)
-            curr_loss_fake = criterion(output_fake, mask_fake)
-            loss = (curr_loss_real + curr_loss_fake) / 2
+            loss_nnb_real = criterion_nnb(real_x_ray, mask_real)
+            loss_nnb_fake = criterion_nnb(fake_x_ray, mask_fake)
+
+            loss_nnc_real = criterion_nnc(prediction_real, 0)
+            loss_nnc_fake = criterion_nnc(prediction_fake, 1)
+
+            # original paper used 100 but we are more interested in final result so 20
+            # divide by 2 because of fake and real
+            loss = (20 * (loss_nnb_real + loss_nnb_fake) + (loss_nnc_real + loss_nnc_fake)) / 2
 
             loss.backward()
             optimizer.step()
 
             total_examples_real += img_real.size(0)
             total_examples_fake += img_fake.size(0)
+
+            curr_loss_fake = 20 * loss_nnb_fake + loss_nnc_fake
+            curr_loss_real = 20 * loss_nnb_real + loss_nnc_real
 
             running_fake_loss += curr_loss_fake.item() * img_fake.size(0)
             running_real_loss += curr_loss_real.item() * img_real.size(0)
@@ -110,7 +129,7 @@ def train_xray(epochs, scheduler, modelb, modelc, dataloaders):
         log.info('Training Loss: {:.4f}'.format(epoch_loss))
         history["train"].append(epoch_loss)
 
-        validation_loss = evaluate_xray(model, minimum_loss)
+        validation_loss = evaluate_and_test_xray(modelb, modelc, minimum_loss)
         history["val"].append(validation_loss)
         log.info(history)
 
@@ -137,13 +156,11 @@ if __name__ == '__main__':
     #     in_channels=1
     # )
 
-    model_cnnB = get_seg_model(cfg="pass")
+    model_nnb = get_seg_model(cfg="pass")
     model_nnc = get_nnc(config="pass")
 
-    model_cnnB.to(gpu)
+    model_nnb.to(gpu)
     model_nnc.to(gpu)
-
-    model_cnnB.module.pretrained_grad()
 
     batch_size = 16
     # input_example = torch.autograd.Variable(torch.randn(batch_size, 1, 224, 224))
@@ -151,16 +168,23 @@ if __name__ == '__main__':
     # # Two because two classes one for black and one for white
     # assert output.size() == torch.Size([batch_size, 2, 224, 224]), "Model outputs incorrect shape"
 
-    log.info("Model is initialised")
+    log.info("Models are initialised")
 
-    train_loader, validation_loader = create_data_loaders(batch_size, num_workers=6)
+    train_loader, validation_loader = create_data_loaders(batch_size, num_workers=6, X_RAY=True)
+
     dataloaders = {
         "train": train_loader,
         "val": validation_loader
     }
+
+    dataset_size = {
+        "val": len(validation_loader.dataset)
+    }
     log.info(f"Dataloaders Created")
 
-    criterion = F.binary_cross_entropy_with_logits
+    criterion_nnb = torch.nn.BCEWithLogitsLoss()
+    criterion_nnc = torch.nn.CrossEntropyLoss()
+    
     optimizer = torch.optim.Adam(segmentation_model.parameters(), lr=0.001,
                                  betas=(0.9, 0.999), eps=1e-08, weight_decay=0, amsgrad=False)
     lr_scheduler = lr_scheduler.StepLR(optimizer, step_size=1, gamma=0.9)
