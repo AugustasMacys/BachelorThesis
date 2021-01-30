@@ -57,7 +57,7 @@ class CNNC(nn.Module):
                     v.requires_grad = False
 
 
-def get_nnc(config, **kwargs):
+def get_nnc():
     model = CNNC()
-    model.init_weights(pretrained=config.TEST.NNC_FILE)
+    model.init_weights()
     return model

@@ -1,9 +1,3 @@
-# ------------------------------------------------------------------------------
-# Copyright (c) Microsoft
-# Licensed under the MIT License.
-# Written by Ke Sun (sunk@mail.ustc.edu.cn)
-# ------------------------------------------------------------------------------
-
 from __future__ import absolute_import
 from __future__ import division
 from __future__ import print_function
@@ -11,6 +5,7 @@ from __future__ import print_function
 import os
 
 from yacs.config import CfgNode as CN
+
 
 _C = CN()
 
@@ -40,6 +35,15 @@ _C.LOSS.USE_OHEM = False
 _C.LOSS.OHEMTHRES = 0.9
 _C.LOSS.OHEMKEEP = 100000
 _C.LOSS.CLASS_BALANCE = True
+
+# DATASET related params
+_C.DATASET = CN()
+_C.DATASET.ROOT = ''
+_C.DATASET.DATASET = 'cityscapes'
+_C.DATASET.NUM_CLASSES = 19
+_C.DATASET.TRAIN_SET = 'list/cityscapes/train.lst'
+_C.DATASET.EXTRA_TRAIN_SET = ''
+_C.DATASET.TEST_SET = 'list/cityscapes/val.lst'
 
 # training
 _C.TRAIN = CN()
@@ -97,11 +101,10 @@ _C.DEBUG.SAVE_HEATMAPS_GT = False
 _C.DEBUG.SAVE_HEATMAPS_PRED = False
 
 
-def update_config(cfg, args):
+def update_config(cfg, new_config_file):
     cfg.defrost()
 
-    cfg.merge_from_file(args.cfg)
-    cfg.merge_from_list(args.opts)
+    cfg.merge_from_file(new_config_file)
 
     cfg.freeze()
 

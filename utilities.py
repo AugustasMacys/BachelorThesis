@@ -43,6 +43,8 @@ TRAINING_DATAFRAME_PATH = os.path.join(DATAFRAMES_DIRECTORY, "faces_training.csv
 MASKS_FOLDER = os.path.join(ROOT_DIR, "mask_xray_fake")
 MASK_REAL_PATH = os.path.join(ROOT_DIR, "mask_xray_real", "black_mask.png")
 
+HRNET_CONFIG_FILE = os.path.join(ROOT_DIR, "x_ray_config", "hrnet_seg.yaml")
+
 
 EFFICIENT_B0_SIZE = 224
 EFFICIENT_B4_SIZE = 320

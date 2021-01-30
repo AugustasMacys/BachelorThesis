@@ -6,13 +6,13 @@ import os
 
 from training.trainModel import create_data_loaders
 
-from utilities import MODELS_DIECTORY
+from utilities import MODELS_DIECTORY, HRNET_CONFIG_FILE
 
 from xray.cnnB import get_seg_model
 from xray.cnnC import get_nnc
 
 
-from x_ray_config import config
+from x_ray_config import config, update_config
 
 
 log = logging.getLogger(__name__)
@@ -152,9 +152,7 @@ def train_xray(epochs, scheduler, optimizer, modelb, modelc, dataloaders, criter
 if __name__ == '__main__':
     gpu = torch.device('cuda:0' if torch.cuda.is_available() else 'cpu')
 
-    print(config.MODEL.NAME)
-
-    exit(0)
+    update_config(config, HRNET_CONFIG_FILE)
 
     # segmentation_model = smp.DeepLabV3Plus(
     #     encoder_name="timm-efficientnet-b4",
@@ -169,8 +167,8 @@ if __name__ == '__main__':
     # # Two because two classes one for black and one for white
     # assert output.size() == torch.Size([batch_size, 2, 224, 224]), "Model outputs incorrect shape"
 
-    model_nnb = get_seg_model(cfg="pass")
-    model_nnc = get_nnc(config="pass")
+    model_nnb = get_seg_model(cfg=config)
+    model_nnc = get_nnc()
 
     model_nnb.to(gpu)
     model_nnc.to(gpu)
