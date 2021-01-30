@@ -28,6 +28,9 @@ class ToTensor(object):
         return image, target
 
 
+tensorize = ToTensor()
+
+
 class Normalize(object):
     def __init__(self, mean, std):
         self.mean = mean
@@ -92,22 +95,25 @@ class XRayDataset(Dataset):
             log.info("Fake Mask not found: {}".format(path_fake_mask))
             return None
 
+        img_real = np.array(img_real)
         mask_real = np.array(mask_real)
+
+        img_fake = np.array(img_fake)
         mask_fake = np.array(mask_fake)
         transformed_real_images = self.augmentate(image=img_real, image2=mask_real)
         img_real = transformed_real_images["image"]
         mask_real = transformed_real_images["image2"]
         # due to isotropic resize need to resize mask
-        mask_real = albumentations_F.resize(mask_real, height=224, width=224)
+        mask_real = albumentations_F.resize(mask_real, height=56, width=56)
 
         transformed_fake_images = self.augmentate(image=img_fake, image2=mask_fake)
         img_fake = transformed_fake_images["image"]
         mask_fake = transformed_fake_images["image2"]
         # due to isotropic resize need to resize mask
-        mask_fake = albumentations_F.resize(mask_fake, height=224, width=224)
+        mask_fake = albumentations_F.resize(mask_fake, height=56, width=56)
 
-        img_real, mask_real = ToTensor(image=img_real, target=mask_real)
-        img_fake, mask_fake = ToTensor(image=img_fake, target=mask_fake)
+        img_real, mask_real = tensorize(image=img_real, target=mask_real)
+        img_fake, mask_fake = tensorize(image=img_fake, target=mask_fake)
 
         img_real, mask_real = normalise(image=img_real, target=mask_real)
         img_fake, mask_fake = normalise(image=img_fake, target=mask_fake)

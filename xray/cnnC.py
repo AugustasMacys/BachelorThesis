@@ -13,11 +13,14 @@ class CNNC(nn.Module):
     def __init__(self):
         super(CNNC, self).__init__()
         self.pool = nn.AdaptiveAvgPool2d((1, 1))
-        self.linear = nn.Linear(1 * 1 * 1, 2)
+        self.linear = nn.Linear(2, 2)
 
     def forward(self, x):
+        print(x.size())
         x = self.pool(x)
+        print(x.size())
         x = x.view(x.size(0), -1)
+        print(x.size())
         x = self.linear(x)
 
         return x

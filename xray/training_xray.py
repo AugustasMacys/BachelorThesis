@@ -4,7 +4,7 @@ import logging
 import time
 import os
 
-from training.trainModel import create_data_loaders
+from training.trainModel import create_data_loaders, freeze_until
 
 from utilities import MODELS_DIECTORY, HRNET_CONFIG_FILE
 
@@ -20,12 +20,13 @@ log = logging.getLogger(__name__)
 
 MAX_ITERATIONS = 200000
 BATCHES_PER_EPOCH = 5000
+WARM_UP = 50000
 
 X_RAY_MODEL_SAVE_PATH_B = os.path.join(MODELS_DIECTORY, "x_ray_model_B.pth")
 X_RAY_MODEL_SAVE_PATH_C = os.path.join(MODELS_DIECTORY, "x_ray_model_C.pth")
 
 
-def evaluate_and_test_xray(model_nnb, model_nnc, criterion_nnc, minimum_loss):
+def evaluate_and_test_xray(model_nnb, model_nnc, criterion_nnc, minimum_loss, dataloaders):
     model_nnb.eval()
     model_nnc.eval()
     running_loss = 0
@@ -58,8 +59,11 @@ def train_xray(epochs, scheduler, optimizer, modelb, modelc, dataloaders, criter
         modelb.train()
         modelc.train()
 
-        if iteration == MAX_ITERATIONS:
+        if iteration >= MAX_ITERATIONS:
             break
+
+        # if iteration >= WARM_UP:
+        #     modelb
 
         log.info('Epoch {}/{}'.format(epoch, epochs - 1))
         log.info('-' * 10)
@@ -86,8 +90,8 @@ def train_xray(epochs, scheduler, optimizer, modelb, modelc, dataloaders, criter
 
             optimizer.zero_grad()
 
-            real_x_ray = modelb(img_real.unsqueeze(1))
-            fake_x_ray = modelb(img_fake.unsqueeze(1))
+            real_x_ray = modelb(img_real)
+            fake_x_ray = modelb(img_fake)
             prediction_real = modelc(real_x_ray)
             prediction_fake = modelc(fake_x_ray)
 
@@ -132,7 +136,7 @@ def train_xray(epochs, scheduler, optimizer, modelb, modelc, dataloaders, criter
         log.info('Training Loss: {:.4f}'.format(epoch_loss))
         history["train"].append(epoch_loss)
 
-        validation_loss = evaluate_and_test_xray(modelb, modelc, minimum_loss)
+        validation_loss = evaluate_and_test_xray(modelb, modelc, criterion_nnc, minimum_loss, dataloaders)
         history["val"].append(validation_loss)
         log.info(history)
 
@@ -150,6 +154,12 @@ def train_xray(epochs, scheduler, optimizer, modelb, modelc, dataloaders, criter
 
 
 if __name__ == '__main__':
+    m = torch.nn.Linear(20, 30)
+    input = torch.randn(128, 20)
+    print(input.size())
+    output = m(input)
+    print(output.size())
+
     gpu = torch.device('cuda:0' if torch.cuda.is_available() else 'cpu')
 
     update_config(config, HRNET_CONFIG_FILE)
@@ -171,12 +181,15 @@ if __name__ == '__main__':
     model_nnc = get_nnc()
 
     model_nnb.to(gpu)
+    freeze_until(model_nnb, 'transition1.0.0.weight')  # Transfer learning
     model_nnc.to(gpu)
 
     batch_size = 16
     epochs = 25
 
     log.info("Models are initialised")
+
+    nnb_parameters_to_optimize = [p for p in model_nnb.parameters() if p.requires_grad]
 
     train_loader, validation_loader = create_data_loaders(batch_size, num_workers=6, X_RAY=True)
 
@@ -194,7 +207,7 @@ if __name__ == '__main__':
     criterion_nnb = torch.nn.BCEWithLogitsLoss()
     criterion_nnc = torch.nn.CrossEntropyLoss()
 
-    optimizer = torch.optim.Adam(list(model_nnb.parameters()) + list(model_nnc.parameters()),
+    optimizer = torch.optim.Adam(nnb_parameters_to_optimize + list(model_nnc.parameters()),
                                  lr=0.0002, betas=(0.9, 0.999), eps=1e-08, weight_decay=0, amsgrad=False)
     lr_scheduler = lr_scheduler.StepLR(optimizer, step_size=1, gamma=0.9)
 
@@ -202,5 +215,7 @@ if __name__ == '__main__':
         "train": [],
         "val": []
     }
+
+    log.info(f"Start Training")
 
     train_xray(epochs, lr_scheduler, optimizer, model_nnb, model_nnc, dataloaders, criterion_nnb, criterion_nnc)
