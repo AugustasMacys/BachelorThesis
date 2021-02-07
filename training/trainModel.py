@@ -47,7 +47,7 @@ encoder_params = {
 
 
 class DeepfakeClassifier(nn.Module):
-    def __init__(self, dropout_rate=0.0):
+    def __init__(self, dropout_rate=0.2):
         super().__init__()
         self.encoder = encoder_params["tf_efficientnet_b4_ns"]["init_op"]()
         self.avg_pool = AdaptiveAvgPool2d((1, 1))

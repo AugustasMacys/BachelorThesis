@@ -3,6 +3,7 @@ from torch.optim import lr_scheduler
 import logging
 import time
 import os
+import numpy as np
 
 from training.trainModel import create_data_loaders, freeze_until
 
@@ -92,14 +93,28 @@ def train_xray(epochs, scheduler, optimizer, modelb, modelc, dataloaders, criter
 
             real_x_ray = modelb(img_real)
             fake_x_ray = modelb(img_fake)
+
             prediction_real = modelc(real_x_ray)
             prediction_fake = modelc(fake_x_ray)
+
+            mask_real = mask_real.unsqueeze(1)
+            mask_fake = mask_fake.unsqueeze(1)
+            mask_real = mask_real.type_as(real_x_ray)
+            mask_fake = mask_fake.type_as(fake_x_ray)
 
             loss_nnb_real = criterion_nnb(real_x_ray, mask_real)
             loss_nnb_fake = criterion_nnb(fake_x_ray, mask_fake)
 
-            loss_nnc_real = criterion_nnc(prediction_real, 0)
-            loss_nnc_fake = criterion_nnc(prediction_fake, 1)
+            target_real = torch.zeros([prediction_real.shape[0],
+                                       prediction_real.shape[1]], dtype=torch.long, device=gpu)
+            target_real[:, :1] = 1
+
+            target_fake = torch.zeros([prediction_fake.shape[0],
+                                       prediction_fake.shape[1]], dtype=torch.long, device=gpu)
+            target_fake[:, 1:2] = 1
+
+            loss_nnc_real = criterion_nnc(prediction_real, torch.max(target_real, 1)[1])
+            loss_nnc_fake = criterion_nnc(prediction_fake, torch.max(target_fake, 1)[1])
 
             # original paper used 100 but we are more interested in final result so 20
             # divide by 2 because of fake and real
@@ -154,12 +169,6 @@ def train_xray(epochs, scheduler, optimizer, modelb, modelc, dataloaders, criter
 
 
 if __name__ == '__main__':
-    m = torch.nn.Linear(20, 30)
-    input = torch.randn(128, 20)
-    print(input.size())
-    output = m(input)
-    print(output.size())
-
     gpu = torch.device('cuda:0' if torch.cuda.is_available() else 'cpu')
 
     update_config(config, HRNET_CONFIG_FILE)

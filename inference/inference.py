@@ -1,9 +1,11 @@
 import os
+from glob import glob
 import time
 from collections import defaultdict
 
 import cv2
 import insightface
+
 import numpy as np
 from PIL import Image
 import torch
@@ -11,24 +13,27 @@ from skimage.filters import threshold_yen
 from skimage.exposure import rescale_intensity
 
 from training.augmentations import isotropically_resize_image, put_to_center, transformation
-from training.trainModel import MyResNeXt
-from utilities import MODELS_DIECTORY, VALIDATION_DIRECTORY
+from training.trainModel import MyResNeXt, DeepfakeClassifier
+from utilities import MODELS_DIECTORY, VALIDATION_DIRECTORY, PRIVATE_TESTING_DIRECTORY, PRIVATE_TESTING_LABELS_PATH
 
-model_save_path = os.path.join(MODELS_DIECTORY, "lowest_loss_model_new.pth")
 
-scores_path = "scores.csv"
-final_path = "final_resnet.csv"
+model_save_path = os.path.join(MODELS_DIECTORY, "lowest_loss_model3.pth")
 
-# error_files = ["4662.mp4", "4688.mp4", "4974.mp4", "5566.mp4", "5727.mp4", "5929.mp4", "6011.mp4", "6283.mp4",
-#                "6624.mp4", "6905.mp4", "7657.mp4", "7750.mp4", "7050.mp4", "7121.mp4", "7298.mp4", "7370.mp4", "7391.mp4", "7468.mp4", "7534.mp4", "7608.mp4"]
+scores_path = "scores_efficient_net4_private_test_set_remaining.csv"
+final_path = "final_efficient_net4_private_test_set_remaining.csv"
+
+# public test set array([4110, 4364, 4540, 4600, 4871, 5058, 5130, 5174, 5260, 5420, 5575,
+#        5608, 5622, 5663, 6161, 6246, 6418, 6769, 6904, 7363, 7568, 7672,
+#        7767, 7853])
 
 
 class InferenceLoader:
 
     def __init__(self, video_dir, face_detector,
-                 transform=None, batch_size=15, face_limit=15):
+                 transform=None, batch_size=24, face_limit=15):
         self.video_dir = video_dir
-        self.test_videos = sorted(f for f in os.listdir(video_dir) if f.endswith(".mp4"))
+        self.test_videos = sorted([y for x in os.walk(self.video_dir) for y in glob(
+            os.path.join(x[0], '*.mp4'))])[3990:]
 
         self.transform = transform
         self.face_detector = face_detector
@@ -42,9 +47,9 @@ class InferenceLoader:
 
     def iter_one_face(self):
         for file_name in self.test_videos:
-            full_path = os.path.join(self.video_dir, file_name)
+            # full_path = os.path.join(self.video_dir, file_name)
 
-            capturator = cv2.VideoCapture(full_path)
+            capturator = cv2.VideoCapture(file_name)
             frames_number = int(capturator.get(cv2.CAP_PROP_FRAME_COUNT))
             width = int(capturator.get(cv2.CAP_PROP_FRAME_WIDTH))
             scale = 1.0
@@ -93,7 +98,7 @@ class InferenceLoader:
 
                     resized_frame = isotropically_resize_image(frame, 224)
                     resized_frame = put_to_center(resized_frame, 224)
-                    cv2.imwrite("test_inference.png", resized_frame)
+                    # cv2.imwrite("test_inference.png", resized_frame)
                     transformed_image = Image.fromarray(resized_frame[:, :, ::-1])
 
                     # normalise and apply prediction transform
@@ -162,18 +167,12 @@ class InferenceLoader:
 if __name__ == '__main__':
     gpu = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 
-    # model = EfficientNet.from_name('efficientnet-b0', num_classes=1)
-    # model._fc = nn.Linear(1280, 1)
-    # model.to(gpu)
-    # model.load_state_dict(torch.load(model_save_path))
-    # model.eval()
-
-    model = MyResNeXt()
+    model = DeepfakeClassifier()
     model.to(gpu)
     model.load_state_dict(torch.load(model_save_path))
     model.eval()
 
-    validation_directory = VALIDATION_DIRECTORY
+    validation_directory = PRIVATE_TESTING_DIRECTORY
     face_detector = insightface.model_zoo.get_model('retinaface_r50_v1')
     face_detector.prepare(ctx_id=0, nms=0.4)
     loader = InferenceLoader(validation_directory, face_detector, transformation)

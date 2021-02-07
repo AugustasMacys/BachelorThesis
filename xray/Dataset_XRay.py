@@ -111,6 +111,8 @@ class XRayDataset(Dataset):
         mask_fake = transformed_fake_images["image2"]
         # due to isotropic resize need to resize mask
         mask_fake = albumentations_F.resize(mask_fake, height=56, width=56)
+        # values between 0 and 1
+        mask_fake = (mask_fake - mask_fake.min()) / (np.ptp(mask_fake))
 
         img_real, mask_real = tensorize(image=img_real, target=mask_real)
         img_fake, mask_fake = tensorize(image=img_fake, target=mask_fake)

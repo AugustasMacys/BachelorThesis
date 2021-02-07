@@ -176,3 +176,8 @@ mask_xray_fake/
 mask_xray_real/
 xray/files_without_mask
 hrnet_pretrained/
+graphs/
+inference/final_efficient_net4.csv
+inference/final_efficient_net4_private_test_set.csv
+inference/scores_efficient_net4.csv
+inference/scores_efficient_net4_private_test_set.csv
