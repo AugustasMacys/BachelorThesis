@@ -52,7 +52,8 @@ def evaluate_and_test_xray(model_nnb, model_nnc, criterion_nnc, minimum_loss, da
     return minimum_loss
 
 
-def train_xray(epochs, scheduler, optimizer, modelb, modelc, dataloaders, criterion_nnb, criterion_nnc):
+def train_xray(epochs, scheduler, optimizer, modelb, modelc, dataloaders, criterion_nnb, criterion_nnc,
+               frozen=True):
     since = time.time()
     minimum_loss = 0.69  # loss of guessing of 0.5 to everything
     iteration = 0
@@ -63,8 +64,10 @@ def train_xray(epochs, scheduler, optimizer, modelb, modelc, dataloaders, criter
         if iteration >= MAX_ITERATIONS:
             break
 
-        # if iteration >= WARM_UP:
-        #     modelb
+        if iteration >= WARM_UP and frozen:
+            log.info("Unfreezing layers")
+            frozen = False
+            freeze_until(model_nnb, 'conv1.weight')  # Unfreezing
 
         log.info('Epoch {}/{}'.format(epoch, epochs - 1))
         log.info('-' * 10)
@@ -135,7 +138,7 @@ def train_xray(epochs, scheduler, optimizer, modelb, modelc, dataloaders, criter
             running_fake_loss += curr_loss_fake.item() * img_fake.size(0)
             running_real_loss += curr_loss_real.item() * img_real.size(0)
 
-            if batch_iteration % 250 == 0:
+            if batch_iteration % 250 == 0 and batch_iteration != 0:
                 log.info("New 250 batches are evaluated")
                 log.info("Batch Number: {}".format(batch_iteration))
                 time_elapsed = time.time() - since
@@ -190,10 +193,10 @@ if __name__ == '__main__':
     model_nnc = get_nnc()
 
     model_nnb.to(gpu)
-    freeze_until(model_nnb, 'transition1.0.0.weight')  # Transfer learning
+    freeze_until(model_nnb, 'last_layer.0.weight')  # Transfer learning
     model_nnc.to(gpu)
 
-    batch_size = 16
+    batch_size = 32
     epochs = 25
 
     log.info("Models are initialised")
@@ -213,12 +216,12 @@ if __name__ == '__main__':
 
     log.info(f"Dataloaders Created")
 
-    criterion_nnb = torch.nn.BCEWithLogitsLoss()
-    criterion_nnc = torch.nn.CrossEntropyLoss()
+    criterion_nnb = torch.nn.CrossEntropyLoss()
+    criterion_nnc = torch.nn.BCEWithLogitsLoss()
 
     optimizer = torch.optim.Adam(nnb_parameters_to_optimize + list(model_nnc.parameters()),
-                                 lr=0.0002, betas=(0.9, 0.999), eps=1e-08, weight_decay=0, amsgrad=False)
-    lr_scheduler = lr_scheduler.StepLR(optimizer, step_size=1, gamma=0.9)
+                                 lr=0.0002)
+    lr_scheduler = lr_scheduler.StepLR(optimizer, step_size=1, gamma=0.9999)
 
     history = {
         "train": [],
