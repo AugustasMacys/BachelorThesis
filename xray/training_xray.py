@@ -3,7 +3,6 @@ from torch.optim import lr_scheduler
 import logging
 import time
 import os
-import numpy as np
 
 from training.trainModel import create_data_loaders, freeze_until
 
@@ -11,7 +10,6 @@ from utilities import MODELS_DIECTORY, HRNET_CONFIG_FILE
 
 from xray.cnnB import get_seg_model
 from xray.cnnC import get_nnc
-
 
 from x_ray_config import config, update_config
 
@@ -39,8 +37,9 @@ def evaluate_and_test_xray(model_nnb, model_nnc, criterion_nnc, minimum_loss, da
 
             face_x_rays = model_nnb(images)
             classifications = model_nnc(face_x_rays)
+            labels = labels.type_as(classifications)
 
-            loss_nnc = criterion_nnc(classifications, labels)
+            loss_nnc = criterion_nnc(classifications, labels.unsqueeze(1))
             running_loss += loss_nnc.item() * images.size(0)
 
     total_loss = running_loss / dataset_size["val"]
@@ -52,8 +51,8 @@ def evaluate_and_test_xray(model_nnb, model_nnc, criterion_nnc, minimum_loss, da
     return minimum_loss
 
 
-def train_xray(epochs, scheduler, optimizer, modelb, modelc, dataloaders, criterion_nnb, criterion_nnc,
-               frozen=True):
+def train_xray(epochs, scheduler, optimizer, modelb, modelc, dataloaders,
+               criterion_nnb, criterion_nnc, frozen=True):
     since = time.time()
     minimum_loss = 0.69  # loss of guessing of 0.5 to everything
     iteration = 0
@@ -81,16 +80,11 @@ def train_xray(epochs, scheduler, optimizer, modelb, modelc, dataloaders, criter
         for batch_iteration, pair in enumerate(dataloaders["train"]):
             iteration += 1
 
-            img_real = pair["real_image"]
-            mask_real = pair["real_mask"]
+            img_real = pair["real_image"].to(gpu)
+            mask_real = pair["real_mask"].to(gpu)
 
-            img_fake = pair["fake_image"]
-            mask_fake = pair["fake_mask"]
-
-            img_real = img_real.to(gpu)
-            mask_real = mask_real.to(gpu)
-            img_fake = img_fake.to(gpu)
-            mask_fake = mask_fake.to(gpu)
+            img_fake = pair["fake_image"].to(gpu)
+            mask_fake = pair["fake_mask"].to(gpu)
 
             optimizer.zero_grad()
 
@@ -100,24 +94,16 @@ def train_xray(epochs, scheduler, optimizer, modelb, modelc, dataloaders, criter
             prediction_real = modelc(real_x_ray)
             prediction_fake = modelc(fake_x_ray)
 
-            mask_real = mask_real.unsqueeze(1)
-            mask_fake = mask_fake.unsqueeze(1)
-            mask_real = mask_real.type_as(real_x_ray)
-            mask_fake = mask_fake.type_as(fake_x_ray)
-
             loss_nnb_real = criterion_nnb(real_x_ray, mask_real)
             loss_nnb_fake = criterion_nnb(fake_x_ray, mask_fake)
 
-            target_real = torch.zeros([prediction_real.shape[0],
-                                       prediction_real.shape[1]], dtype=torch.long, device=gpu)
-            target_real[:, :1] = 1
+            target_real = torch.zeros(prediction_real.shape[0], 1,
+                                      dtype=torch.float32, device=gpu)
+            target_fake = torch.ones(prediction_fake.shape[0], 1,
+                                     dtype=torch.float32, device=gpu)
 
-            target_fake = torch.zeros([prediction_fake.shape[0],
-                                       prediction_fake.shape[1]], dtype=torch.long, device=gpu)
-            target_fake[:, 1:2] = 1
-
-            loss_nnc_real = criterion_nnc(prediction_real, torch.max(target_real, 1)[1])
-            loss_nnc_fake = criterion_nnc(prediction_fake, torch.max(target_fake, 1)[1])
+            loss_nnc_real = criterion_nnc(prediction_real, target_real)
+            loss_nnc_fake = criterion_nnc(prediction_fake, target_fake)
 
             # original paper used 100 but we are more interested in final result so 20
             # divide by 2 because of fake and real
@@ -164,30 +150,17 @@ def train_xray(epochs, scheduler, optimizer, modelb, modelc, dataloaders, criter
             torch.save(modelc.state_dict(), X_RAY_MODEL_SAVE_PATH_B)
             torch.save(modelc.state_dict(), X_RAY_MODEL_SAVE_PATH_C)
 
-        log.info('Training complete in {:.0f}m {:.0f}s'.format(
-            time_elapsed // 60, time_elapsed % 60))
-        log.info('Loss: {:4f}'.format(minimum_loss))
+    time_elapsed = time.time() - since
+    log.info('Training complete in {:.0f}m {:.0f}s'.format(time_elapsed // 60, time_elapsed % 60))
+    log.info('Loss: {:4f}'.format(minimum_loss))
 
-        return
+    return
 
 
 if __name__ == '__main__':
     gpu = torch.device('cuda:0' if torch.cuda.is_available() else 'cpu')
 
     update_config(config, HRNET_CONFIG_FILE)
-
-    # segmentation_model = smp.DeepLabV3Plus(
-    #     encoder_name="timm-efficientnet-b4",
-    #     encoder_depth=3,
-    #     encoder_weights="noisy-student",
-    #     classes=2,
-    #     in_channels=1
-    # )
-
-    # input_example = torch.autograd.Variable(torch.randn(batch_size, 1, 224, 224))
-    # output = segmentation_model(input_example)
-    # # Two because two classes one for black and one for white
-    # assert output.size() == torch.Size([batch_size, 2, 224, 224]), "Model outputs incorrect shape"
 
     model_nnb = get_seg_model(cfg=config)
     model_nnc = get_nnc()
