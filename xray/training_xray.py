@@ -18,7 +18,7 @@ log = logging.getLogger(__name__)
 
 
 MAX_ITERATIONS = 200000
-BATCHES_PER_EPOCH = 5000
+BATCHES_PER_EPOCH = 2500
 WARM_UP = 50000
 
 X_RAY_MODEL_SAVE_PATH_B = os.path.join(MODELS_DIECTORY, "x_ray_model_B.pth")
@@ -107,7 +107,7 @@ def train_xray(epochs, scheduler, optimizer, modelb, modelc, dataloaders,
 
             # original paper used 100 but we are more interested in final result so 20
             # divide by 2 because of fake and real
-            loss = (20 * (loss_nnb_real + loss_nnb_fake) + (loss_nnc_real + loss_nnc_fake)) / 2
+            loss = (100 * (loss_nnb_real + loss_nnb_fake) + (loss_nnc_real + loss_nnc_fake)) / 2
 
             loss.backward()
             optimizer.step()
@@ -118,8 +118,8 @@ def train_xray(epochs, scheduler, optimizer, modelb, modelc, dataloaders,
             total_examples_real += img_real.size(0)
             total_examples_fake += img_fake.size(0)
 
-            curr_loss_fake = 20 * loss_nnb_fake + loss_nnc_fake
-            curr_loss_real = 20 * loss_nnb_real + loss_nnc_real
+            curr_loss_fake = 100 * loss_nnb_fake + loss_nnc_fake
+            curr_loss_real = 100 * loss_nnb_real + loss_nnc_real
 
             running_fake_loss += curr_loss_fake.item() * img_fake.size(0)
             running_real_loss += curr_loss_real.item() * img_real.size(0)
@@ -169,8 +169,8 @@ if __name__ == '__main__':
     freeze_until(model_nnb, 'last_layer.0.weight')  # Transfer learning
     model_nnc.to(gpu)
 
-    batch_size = 32
-    epochs = 25
+    batch_size = 16
+    epochs = 80
 
     log.info("Models are initialised")
 
