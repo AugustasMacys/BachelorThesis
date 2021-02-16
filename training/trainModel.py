@@ -18,7 +18,7 @@ from xray.Dataset_XRay import XRayDataset
 
 import torch
 from torch import distributions
-from timm.models.efficientnet import tf_efficientnet_b4_ns
+from timm.models.efficientnet import tf_efficientnet_b4_ns, tf_efficientnet_l2_ns_475
 from torch.utils.data import DataLoader
 from torch.nn import functional as F, AdaptiveAvgPool2d, Dropout, Linear
 from torch.optim import lr_scheduler
@@ -44,6 +44,33 @@ encoder_params = {
                            drop_path_rate=0.2)
     }
 }
+
+
+encoder_params_3D = {
+    "tf_efficientnet_l2_ns_475": {
+        "features": 5504,
+        "init_op": partial(tf_efficientnet_l2_ns_475,
+                           num_classes=1,
+                           pretrained=True,
+                           drop_rate=0.5)
+    }
+}
+
+
+class DeepfakeClassifier3D(nn.Module):
+    def __init__(self, dropout_rate=0.2):
+        super().__init__()
+        self.encoder = encoder_params_3D["tf_efficientnet_l2_ns_475"]["init_op"]()
+        self.avg_pool = AdaptiveAvgPool2d((1, 1))
+        self.dropout = Dropout(dropout_rate)
+        self.fc = Linear(encoder_params["tf_efficientnet_l2_ns_475"]["features"], 1)
+
+    def forward(self, x):
+        x = self.encoder.forward_features(x)
+        x = self.avg_pool(x).flatten(1)
+        x = self.dropout(x)
+        x = self.fc(x)
+        return x
 
 
 class DeepfakeClassifier(nn.Module):
