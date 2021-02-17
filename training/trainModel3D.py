@@ -2,6 +2,7 @@ from functools import partial
 import config_logger
 import logging
 import os
+import random
 
 import ntpath
 import numpy as np
@@ -16,6 +17,11 @@ import torch.nn as nn
 
 from timm.models.efficientnet_blocks import InvertedResidual
 from torch.utils.data import Dataset
+
+from training.augmentations import augmentation_pipeline_3D, gaussian_noise_transform_3D
+
+
+from albumentations.pytorch import ToTensor
 
 log = logging.getLogger(__name__)
 
@@ -38,9 +44,10 @@ class DeepFakeDataset3D(Dataset):
     """Deepfake dataset"""
 
     def __init__(self, sequence_dataframe, real_dictionary_to_identifiers,
-                 fake_dictionary_to_identifiers, augmentations, image_size=224):
+                 fake_dictionary_to_identifiers, augmentations, image_width=224, image_height=192):
 
-        self.image_size = image_size
+        self.image_width = image_width
+        self.image_height = image_height
         if 'index' in sequence_dataframe:
             del sequence_dataframe['index']
 
@@ -60,6 +67,15 @@ class DeepFakeDataset3D(Dataset):
             indices = real_identifiers[4:9]
             prefix = ntpath.basename(real_image_folder)
             full_prefix = os.path.join(real_image_folder, prefix)
+
+            sequence_images = [self.load_img(full_prefix, identifier) for identifier in indices]
+            prev_state = random.getstate()
+            transformed_real_images = []
+            for img in sequence_images:
+                image_transformed = self.augmentate(image=img)["image"]
+                image_transformed = gaussian_noise_transform_3D(image=img)["image"]
+
+
             sequence = np.stack([self.load_img(full_prefix, identifier) for identifier in indices])
         elif len(real_identifiers) >= 5:
             indices = real_identifiers[0:5]
@@ -74,6 +90,9 @@ class DeepFakeDataset3D(Dataset):
             indices = fake_identifiers[4:9]
             prefix = ntpath.basename(fake_image_folder)
             full_prefix = os.path.join(fake_image_folder, prefix)
+            prev_state = random.getstate()
+            sequence_images = [self.load_img(full_prefix, identifier) for identifier in indices]
+
             sequence = np.stack([self.load_img(full_prefix, identifier) for identifier in indices])
         elif len(fake_identifiers) >= 5:
             indices = fake_identifiers[0:5]
