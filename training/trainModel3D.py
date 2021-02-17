@@ -1,7 +1,14 @@
 from functools import partial
 import config_logger
 import logging
+import os
 
+import ntpath
+import numpy as np
+
+import cv2
+
+from glob import glob
 from timm.models.efficientnet import tf_efficientnet_l2_ns_475
 from torch.nn import functional as F, Dropout, Linear, AdaptiveAvgPool3d
 import torch
@@ -30,7 +37,8 @@ encoder_params_3D = {
 class DeepFakeDataset3D(Dataset):
     """Deepfake dataset"""
 
-    def __init__(self, sequence_dataframe, augmentations, image_size=224):
+    def __init__(self, sequence_dataframe, real_dictionary_to_identifiers,
+                 fake_dictionary_to_identifiers, augmentations, image_size=224):
 
         self.image_size = image_size
         if 'index' in sequence_dataframe:
@@ -38,8 +46,8 @@ class DeepFakeDataset3D(Dataset):
 
         self.augmentate = augmentations
         self.df = sequence_dataframe
-        self.identifiers = [60, 80, 100, 120, 140]
-        self.emergency_identifiers = [0, 20, 40, 60, 80]
+        self.real_to_identifiers = real_dictionary_to_identifiers
+        self.fake_to_identifiers = fake_dictionary_to_identifiers
 
     def __getitem__(self, index):
         row = self.df.iloc[index]
@@ -47,23 +55,34 @@ class DeepFakeDataset3D(Dataset):
         real_image_folder = row["real_image_folder"]
         fake_image_folder = row["fake_image_folder"]
 
-        # Will go here from second epoch
-        if real_image_name in self.non_existing_files or fake_image_name in self.non_existing_files:
+        real_identifiers = self.real_to_identifiers[real_image_folder]
+        if len(real_identifiers > 10):
+            indices = real_identifiers[4:9]
+            prefix = ntpath.basename(real_image_folder)
+            full_prefix = os.path.join(real_image_folder, prefix)
+            sequence = np.stack([self.load_img(full_prefix, identifier) for identifier in indices])
+        elif len(real_identifiers) >= 5:
+            indices = real_identifiers[0:5]
+            prefix = ntpath.basename(real_image_folder)
+            full_prefix = os.path.join(real_image_folder, prefix)
+            sequence = np.stack([self.load_img(full_prefix, identifier) for identifier in indices])
+        else:
             return None
 
-        try:
-            img_real = Image.open(real_image_name).convert("RGB")
-        except FileNotFoundError:
-            log.info("Real Image not found: {}".format(real_image_name))
-            return None
-        try:
-            img_fake = Image.open(fake_image_name).convert("RGB")
-        except FileNotFoundError:
-            log.info("Fake Image not found: {}".format(fake_image_name))
+        fake_identifiers = self.fake_to_identifiers[fake_image_folder]
+        if len(fake_identifiers > 10):
+            indices = fake_identifiers[4:9]
+            prefix = ntpath.basename(fake_image_folder)
+            full_prefix = os.path.join(fake_image_folder, prefix)
+            sequence = np.stack([self.load_img(full_prefix, identifier) for identifier in indices])
+        elif len(fake_identifiers) >= 5:
+            indices = fake_identifiers[0:5]
+            prefix = ntpath.basename(fake_image_folder)
+            full_prefix = os.path.join(fake_image_folder, prefix)
+            sequence = np.stack([self.load_img(full_prefix, identifier) for identifier in indices])
+        else:
             return None
 
-        img_real = np.array(img_real)
-        img_fake = np.array(img_fake)
         transformed_images = self.augmentate(image=img_real, image2=img_fake)
         img_real = transformed_images["image"]
         img_fake = transformed_images["image2"]
@@ -87,6 +106,14 @@ class DeepFakeDataset3D(Dataset):
         }
 
         return pair
+
+
+    def load_img(self, track_path, idx):
+        full_image_path = track_path + "_{}.png".format(idx)
+        img = cv2.imread(full_image_path)
+        img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
+
+        return img
 
 
 

@@ -181,3 +181,7 @@ inference/final_efficient_net4.csv
 inference/final_efficient_net4_private_test_set.csv
 inference/scores_efficient_net4.csv
 inference/scores_efficient_net4_private_test_set.csv
+fake_folder_to_identifiers.pkl
+real_folder_to_identifiers.pkl
+training/FindModel.py
+
