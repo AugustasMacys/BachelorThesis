@@ -17,6 +17,11 @@ gaussian_noise_transform = Compose([
     )
 
 
+gaussian_noise_transform_3D = Compose([
+        GaussNoise(p=0.1)]
+    )
+
+
 def put_to_center(img, input_size):
     img = img[:input_size, :input_size]
     image = np.zeros((input_size, input_size, 3), dtype=np.uint8)
@@ -72,6 +77,24 @@ def augmentation_pipeline(size=224):
         ToGray(p=0.2),
         ShiftScaleRotate(shift_limit=0.1, scale_limit=0.2, rotate_limit=10, border_mode=cv2.BORDER_CONSTANT, p=0.5)],
         additional_targets={'image2': 'image'}
+    )
+
+
+def augmentation_pipeline_3D(size_height=224, size_width=192):
+    return Compose([
+        ImageCompression(quality_lower=60, quality_upper=100, p=0.5),
+        GaussianBlur(blur_limit=3, p=0.05),
+        MotionBlur(p=0.05),
+        HorizontalFlip(),
+        OneOf([
+            IsotropicResize(max_side=size_height, interpolation_down=cv2.INTER_AREA, interpolation_up=cv2.INTER_CUBIC),
+            IsotropicResize(max_side=size_height, interpolation_down=cv2.INTER_AREA, interpolation_up=cv2.INTER_LINEAR),
+            IsotropicResize(max_side=size_height, interpolation_down=cv2.INTER_LINEAR, interpolation_up=cv2.INTER_LINEAR),
+        ], p=1),
+        PadIfNeeded(min_height=size_height, min_width=size_width, border_mode=cv2.BORDER_CONSTANT),
+        OneOf([RandomBrightnessContrast(), FancyPCA(), HueSaturationValue()], p=0.7),
+        ToGray(p=0.2),
+        ShiftScaleRotate(shift_limit=0.1, scale_limit=0.2, rotate_limit=10, border_mode=cv2.BORDER_CONSTANT, p=0.5)]
     )
 
 

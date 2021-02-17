@@ -279,7 +279,8 @@ if __name__ == '__main__':
     model = model.to(gpu)
     # freeze_until(model, "layer4.0.conv1.weight")
     criterion = F.binary_cross_entropy_with_logits
-    optimizer_ft = optim.SGD(model.parameters(), lr=0.01, momentum=0.9, weight_decay=1e-4, nesterov=True)
+    optimizer_ft = optim.SGD(model.parameters(), lr=0.01, momentum=0.9,
+                             weight_decay=1e-4, nesterov=True)
     lr_scheduler = lr_scheduler.StepLR(optimizer_ft, step_size=1, gamma=0.9)
     # lr_scheduler = lr_scheduler.LambdaLR(optimizer_ft, lambda iteration: (MAX_ITERATIONS - iteration) / MAX_ITERATIONS)
     probability_distribution = distributions.beta.Beta(0.5, 0.5)
