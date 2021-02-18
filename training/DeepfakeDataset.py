@@ -37,7 +37,7 @@ class ValidationDataset(Dataset):
         img = np.array(img)
 
         transformed_image = self.augmentate(image=img)["image"]
-        transformed_image = put_to_center(transformed_image, 224)
+        transformed_image = put_to_center(transformed_image, self.image_size)
         transformed_image = img_to_tensor(transformed_image, {"mean": MEAN,
                                                               "std": STD})
 

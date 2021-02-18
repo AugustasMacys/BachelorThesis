@@ -1,31 +1,33 @@
-from functools import partial
-import config_logger
 import logging
+import config_logger
+from functools import partial
+import ntpath
 import os
 import random
+import pickle
 import time
 
-import ntpath
-import numpy as np
-
-import cv2
-
-from glob import glob
-from timm.models.efficientnet import tf_efficientnet_l2_ns_475
-from torch.nn import functional as F, Dropout, Linear, AdaptiveAvgPool3d
-from torch.optim import lr_scheduler
-import torch.optim as optim
-import torch
-import torch.nn as nn
 
 from albumentations.pytorch.functional import img_to_tensor
-
+import cv2
+import numpy as np
+import pandas as pd
 from timm.models.efficientnet_blocks import InvertedResidual
-from torch.utils.data import Dataset
-
+from timm.models.efficientnet import tf_efficientnet_l2_ns_475
+import torch
 from torch import distributions
+from torch.optim import lr_scheduler
+import torch.optim as optim
+from torch.nn import functional as F, Dropout, Linear, AdaptiveAvgPool3d
+import torch.nn as nn
+from torch.utils.data import DataLoader, Dataset
 
+
+from utilities import SEQUENCE_DATAFRAME_PATH, REAL_FOLDER_TO_IDENTIFIERS_PATH, FAKE_FOLDER_TO_IDENTIFIERS_PATH,\
+    VALIDATION_DATAFRAME_PATH
 from training.augmentations import augmentation_pipeline_3D, gaussian_noise_transform_3D
+from training.DeepfakeDataset import ValidationDataset
+from training.trainModel import collate_fn
 from training.trainUtilities import MEAN, STD
 
 log = logging.getLogger(__name__)
@@ -33,7 +35,6 @@ log = logging.getLogger(__name__)
 
 SEQUENCE_LENGTH = 5
 MAX_ITERATIONS = 100000
-
 
 encoder_params_3D = {
     "tf_efficientnet_l2_ns_475": {
@@ -242,7 +243,29 @@ if __name__ == '__main__':
     log.info("Program Started")
     log.info(f"GPU value: {gpu}")
 
-    ## create dataloaders
+    sequence_dataframe = pd.read_csv(SEQUENCE_DATAFRAME_PATH)
+    with open(REAL_FOLDER_TO_IDENTIFIERS_PATH, 'rb') as handle:
+        real_folder_to_identifiers = pickle.load(handle)
+    with open(FAKE_FOLDER_TO_IDENTIFIERS_PATH, 'rb') as handle:
+        fake_folder_to_identifiers = pickle.load(handle)
+
+    batch_size = 2
+    num_workers = 2
+
+    train_dataset = DeepFakeDataset3D(sequence_dataframe, real_folder_to_identifiers, fake_folder_to_identifiers,
+                                      augmentation_pipeline_3D())
+    train_loader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True, num_workers=num_workers,
+                              pin_memory=True, collate_fn=collate_fn, drop_last=True)
+
+    # need to create testing dataset
+    # validation_dataframe = pd.read_csv(VALIDATION_DATAFRAME_PATH)
+    #
+    # validation_dataset = ValidationDataset(validation_dataframe, validation_augmentation_pipeline())
+    #
+    # validation_loader = DataLoader(validation_dataset, batch_size=batch_size, shuffle=False,
+    #                                num_workers=num_workers, pin_memory=True)
+
+    ## create validation dataloaders
 
     log.info(f"Dataloaders Created")
 

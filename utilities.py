@@ -48,6 +48,12 @@ HRNET_CONFIG_FILE = os.path.join(ROOT_DIR, "x_ray_config", "hrnet_seg.yaml")
 PRIVATE_TESTING_DIRECTORY = os.path.join(ROOT_DIR, "aws")
 PRIVATE_TESTING_LABELS_PATH = os.path.join(PRIVATE_TESTING_DIRECTORY, "labels_updated.csv")
 
+SEQUENCE_DATAFRAMES_FOLDER = os.path.join(ROOT_DIR, "dataframes_3dcnn")
+SEQUENCE_DATAFRAME_PATH = os.path.join(SEQUENCE_DATAFRAMES_FOLDER, "3dcnn_dataframe.csv")
+
+REAL_FOLDER_TO_IDENTIFIERS_PATH = os.path.join(ROOT_DIR, "real_folder_to_identifiers.pkl")
+FAKE_FOLDER_TO_IDENTIFIERS_PATH = os.path.join(ROOT_DIR, "fake_folder_to_identifiers.pkl")
+
 
 EFFICIENT_B0_SIZE = 224
 EFFICIENT_B4_SIZE = 320
