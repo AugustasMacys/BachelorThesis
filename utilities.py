@@ -54,8 +54,7 @@ SEQUENCE_DATAFRAME_TESTING_PATH = os.path.join(SEQUENCE_DATAFRAMES_FOLDER, "3dte
 
 REAL_FOLDER_TO_IDENTIFIERS_PATH = os.path.join(ROOT_DIR, "real_folder_to_identifiers.pkl")
 FAKE_FOLDER_TO_IDENTIFIERS_PATH = os.path.join(ROOT_DIR, "fake_folder_to_identifiers.pkl")
-
-
+TESTING_FOLDER_TO_IDENTIFIERS_PATH = os.path.join(ROOT_DIR, "testing_folder_to_identifiers.pkl")
 
 
 EFFICIENT_B0_SIZE = 224

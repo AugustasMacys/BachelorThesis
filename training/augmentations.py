@@ -113,10 +113,10 @@ def xray_augmentation_pipeline(size=224):
     )
 
 
-def validation_augmentation_pipeline(size=224):
+def validation_augmentation_pipeline(height=224, width=192):
     return Compose([
-        IsotropicResize(max_side=size, interpolation_down=cv2.INTER_AREA, interpolation_up=cv2.INTER_CUBIC),
-        PadIfNeeded(min_height=size, min_width=size, border_mode=cv2.BORDER_CONSTANT),
+        IsotropicResize(max_side=height, interpolation_down=cv2.INTER_AREA, interpolation_up=cv2.INTER_CUBIC),
+        PadIfNeeded(min_height=height, min_width=width, border_mode=cv2.BORDER_CONSTANT),
     ])
 
 

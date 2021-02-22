@@ -24,9 +24,9 @@ from torch.utils.data import DataLoader, Dataset
 
 
 from utilities import SEQUENCE_DATAFRAME_PATH, REAL_FOLDER_TO_IDENTIFIERS_PATH, FAKE_FOLDER_TO_IDENTIFIERS_PATH,\
-    VALIDATION_DATAFRAME_PATH, SEQUENCE_DATAFRAME_TESTING_PATH
-from training.augmentations import augmentation_pipeline_3D, gaussian_noise_transform_3D
-from training.DeepfakeDataset import ValidationDataset
+    SEQUENCE_DATAFRAME_TESTING_PATH, TESTING_FOLDER_TO_IDENTIFIERS_PATH
+from training.augmentations import augmentation_pipeline_3D, gaussian_noise_transform_3D, \
+    validation_augmentation_pipeline
 from training.trainModel import collate_fn
 from training.trainUtilities import MEAN, STD
 
@@ -69,12 +69,11 @@ class TestingDataset(Dataset):
         label = row["label"]
 
         identifiers = self.path_to_identifiers[folder_name]
-        prev_state = random.getstate()
         if len(identifiers > 10):
-            sequence = self.load_sequence(identifiers[4:9], folder_name, prev_state)
+            sequence = self.load_sequence(identifiers[4:9], folder_name)
             # sequence = np.stack([self.load_img(full_prefix, identifier) for identifier in indices])
         elif len(identifiers) >= 5:
-            sequence = self.load_sequence(identifiers[0:5], folder_name, prev_state)
+            sequence = self.load_sequence(identifiers[0:5], folder_name)
             # sequence = np.stack([self.load_img(full_prefix, identifier) for identifier in indices])
         else:
             log.info("Failed to get Sequence")
@@ -85,13 +84,12 @@ class TestingDataset(Dataset):
     def __len__(self):
         return len(self.testing_dataframe)
 
-    def load_sequence(self, indices, image_folder, prev_state):
+    def load_sequence(self, indices, image_folder):
         prefix = ntpath.basename(image_folder)
         full_prefix = os.path.join(image_folder, prefix)
         sequence_images = [self.load_img(full_prefix, identifier) for identifier in indices]
         transformed_image_sequence = []
         for img in sequence_images:
-            random.setstate(prev_state)
             image_transformed = self.augmentate(image=img)["image"]
             image_transformed = img_to_tensor(image_transformed, {"mean": MEAN,
                                                                   "std": STD})
@@ -158,6 +156,9 @@ class DeepFakeDataset3D(Dataset):
         }
 
         return sequence_pair
+
+    def __len__(self):
+        return len(self.df)
 
     def load_sequence(self, indices, image_folder, prev_state):
         prefix = ntpath.basename(image_folder)
@@ -318,14 +319,14 @@ if __name__ == '__main__':
                               pin_memory=True, collate_fn=collate_fn, drop_last=True)
 
     # need to create testing dataset
-    validation_dataframe = pd.read_csv(VALIDATION_DATAFRAME_PATH)
+    testing_sequence_dataframe = pd.read_csv(SEQUENCE_DATAFRAME_TESTING_PATH)
+    with open(TESTING_FOLDER_TO_IDENTIFIERS_PATH, 'rb') as handle:
+        testing_folder_to_identifiers = pickle.load(handle)
 
-    validation_dataset = ValidationDataset(validation_dataframe, validation_augmentation_pipeline())
-
-    validation_loader = DataLoader(validation_dataset, batch_size=batch_size, shuffle=False,
-                                   num_workers=num_workers, pin_memory=True)
-
-    ## create validation dataloaders
+    testing_dataset = TestingDataset(testing_sequence_dataframe, validation_augmentation_pipeline(),
+                                     testing_folder_to_identifiers)
+    testing_loader = DataLoader(testing_dataset, batch_size=batch_size, shuffle=False,
+                                num_workers=num_workers, collate_fn=collate_fn, pin_memory=True)
 
     log.info(f"Dataloaders Created")
 
@@ -359,6 +360,8 @@ if __name__ == '__main__':
         "train": [],
         "val": []
     }
+
+    exit(0)
 
     model = train_model(model, criterion, optimizer_ft, lr_scheduler, 25)
 
