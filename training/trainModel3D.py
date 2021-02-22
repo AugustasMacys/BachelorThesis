@@ -275,17 +275,13 @@ def train_model(model, criterion, optimizer, scheduler, epochs):
             # zero the parameter gradients
             optimizer.zero_grad()
             outputs = model(input_tensor.flatten(0, 1))
-            # outputs = model(input_tensor)
-            print(outputs.shape)
-            exit(0)
             y_pred = outputs.squeeze()
+            target = target.repeat_interleave(SEQUENCE_LENGTH)
 
             loss = criterion(y_pred, target)
 
             loss.backward()
             optimizer.step()
-
-            exit(0)
 
             # statistics
             running_training_loss += loss.item() * current_batch_size
