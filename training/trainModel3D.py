@@ -24,10 +24,10 @@ import torch.nn as nn
 from torch.utils.data import DataLoader, Dataset
 
 
-from utilities import SEQUENCE_DATAFRAME_PATH, REAL_FOLDER_TO_IDENTIFIERS_PATH, FAKE_FOLDER_TO_IDENTIFIERS_PATH,\
-    SEQUENCE_DATAFRAME_TESTING_PATH, TESTING_FOLDER_TO_IDENTIFIERS_PATH
+from utilities import SEQUENCE_DATAFRAME_PATH, REAL_FOLDER_TO_IDENTIFIERS_PATH, FAKE_FOLDER_TO_IDENTIFIERS_PATH, \
+    SEQUENCE_DATAFRAME_TESTING_PATH, TESTING_FOLDER_TO_IDENTIFIERS_PATH, MODELS_DIECTORY
 from training.augmentations import augmentation_pipeline_3D, gaussian_noise_transform_3D, \
-    validation_augmentation_pipeline
+    validation_augmentation_pipeline, put_to_center
 from training.trainModel import collate_fn
 from training.trainUtilities import MEAN, STD
 
@@ -36,6 +36,8 @@ log = logging.getLogger(__name__)
 
 SEQUENCE_LENGTH = 5
 MAX_ITERATIONS = 100000
+
+model_save_path = os.path.join(MODELS_DIECTORY, "3Dmodel")
 
 encoder_params_3D = {
     "tf_efficientnet_l2_ns_475": {
@@ -58,7 +60,7 @@ class TestingDataset(Dataset):
     """ Deepfake Validation Dataset """
 
     def __init__(self, testing_dataframe, augmentations, path_to_identifiers_dictionary,
-                 image_width=224, image_height=192):
+                 image_width=192, image_height=224):
 
         self.image_width = image_width
         self.image_height = image_height
@@ -78,10 +80,8 @@ class TestingDataset(Dataset):
         identifiers = self.path_to_identifiers[folder_name]
         if len(identifiers) > 10:
             sequence = self.load_sequence(identifiers[4:9], folder_name)
-            # sequence = np.stack([self.load_img(full_prefix, identifier) for identifier in indices])
         elif len(identifiers) >= 5:
             sequence = self.load_sequence(identifiers[0:5], folder_name)
-            # sequence = np.stack([self.load_img(full_prefix, identifier) for identifier in indices])
         else:
             log.info("Failed to get Sequence")
             return None
@@ -98,11 +98,12 @@ class TestingDataset(Dataset):
         transformed_image_sequence = []
         for img in sequence_images:
             image_transformed = self.augmentate(image=img)["image"]
+            image_transformed = put_to_center(image_transformed, self.image_height)
             image_transformed = img_to_tensor(image_transformed, {"mean": MEAN,
                                                                   "std": STD})
             transformed_image_sequence.append(image_transformed)
 
-        return transformed_image_sequence
+        return np.stack(transformed_image_sequence)
 
     def load_img(self, sequence_path, idx):
         full_image_path = sequence_path + "_{}.png".format(idx)
@@ -116,7 +117,7 @@ class DeepFakeDataset3D(Dataset):
     """Deepfake dataset"""
 
     def __init__(self, sequence_dataframe, real_dictionary_to_identifiers,
-                 fake_dictionary_to_identifiers, augmentations, image_width=224, image_height=192):
+                 fake_dictionary_to_identifiers, augmentations, image_width=192, image_height=224):
 
         self.image_width = image_width
         self.image_height = image_height
@@ -137,10 +138,8 @@ class DeepFakeDataset3D(Dataset):
         prev_state = random.getstate()
         if len(real_identifiers) > 10:
             real_sequence = self.load_sequence(real_identifiers[4:9], real_image_folder, prev_state)
-            # sequence = np.stack([self.load_img(full_prefix, identifier) for identifier in indices])
         elif len(real_identifiers) >= 5:
             real_sequence = self.load_sequence(real_identifiers[0:5], real_image_folder, prev_state)
-            # sequence = np.stack([self.load_img(full_prefix, identifier) for identifier in indices])
         else:
             log.info("Failed to get Real Sequence")
             return None
@@ -149,10 +148,8 @@ class DeepFakeDataset3D(Dataset):
         fake_identifiers = self.fake_to_identifiers[fake_image_folder]
         if len(fake_identifiers) > 10:
             fake_sequence = self.load_sequence(fake_identifiers[4:9], fake_image_folder, prev_state)
-            # sequence = np.stack([self.load_img(full_prefix, identifier) for identifier in indices])
         elif len(fake_identifiers) >= 5:
             fake_sequence = self.load_sequence(fake_identifiers[0:5], fake_image_folder, prev_state)
-            # sequence = np.stack([self.load_img(full_prefix, identifier) for identifier in indices])
         else:
             log.info("Failed to get Fake Sequence")
             return None
@@ -239,6 +236,34 @@ class ConvolutionExpander(nn.Module):
         return x
 
 
+def evaluate(model, minimum_loss):
+    model.eval()
+    running_loss = 0
+
+    for sequence, labels in testing_loader:
+        with torch.no_grad():
+            sequence = sequence.to(gpu)
+            labels = labels.to(gpu)
+
+            sequence = sequence.squeeze()
+            outputs = model(sequence)
+            y_pred = outputs.squeeze()
+
+            labels = labels.type_as(y_pred)
+            loss = criterion(y_pred, labels.repeat_interleave(SEQUENCE_LENGTH))
+
+            # need to track all images
+            running_loss += loss.item() * sequence.size(0)
+
+    total_loss = running_loss / dataset_size["test"]
+    log.info('Validation Loss: {:4f}'.format(total_loss))
+
+    if total_loss < minimum_loss:
+        minimum_loss = total_loss
+
+    return minimum_loss
+
+
 def train_model(model, criterion, optimizer, scheduler, epochs):
     since = time.time()
     minimum_loss = 0.70
@@ -274,6 +299,7 @@ def train_model(model, criterion, optimizer, scheduler, epochs):
 
             # zero the parameter gradients
             optimizer.zero_grad()
+
             outputs = model(input_tensor.flatten(0, 1))
             y_pred = outputs.squeeze()
             target = target.repeat_interleave(SEQUENCE_LENGTH)
@@ -285,17 +311,14 @@ def train_model(model, criterion, optimizer, scheduler, epochs):
 
             # statistics
             running_training_loss += loss.item() * current_batch_size
-            if batch_number % 500 == 0:
-                log.info("New 500 batches are evaluated")
+            if batch_number % 250 == 0:
+                log.info("New 250 batches are evaluated")
                 log.info("Batch Number: {}".format(batch_number))
                 time_elapsed = time.time() - since
                 log.info('Training complete in {:.0f}m {:.0f}s'.format(
                     time_elapsed // 60, time_elapsed % 60))
                 max_lr = max(param_group["lr"] for param_group in optimizer.param_groups)
                 log.info("iteration: {}, max_lr: {}".format(iteration, max_lr))
-
-            if batch_number >= BATCHES_PER_EPOCH:
-                break
 
         epoch_loss = running_training_loss / total_examples
         log.info('Training Loss: {:.4f}'.format(epoch_loss))
@@ -311,8 +334,8 @@ def train_model(model, criterion, optimizer, scheduler, epochs):
         if validation_loss < minimum_loss:
             minimum_loss = validation_loss
             log.info("Minimum loss is: {}".format(minimum_loss))
-            # best_model_wts = copy.deepcopy(model.state_dict())
-            torch.save(model.state_dict(), model_save_path)
+            path_model = model_save_path + str(epoch) + ".pth"
+            torch.save(model.state_dict(), path_model)
 
     time_elapsed = time.time() - since
 
@@ -337,6 +360,7 @@ if __name__ == '__main__':
         fake_folder_to_identifiers = pickle.load(handle)
 
     batch_size = 2
+    batch_size_testing = 1
     num_workers = 2
 
     train_dataset = DeepFakeDataset3D(sequence_dataframe, real_folder_to_identifiers, fake_folder_to_identifiers,
@@ -351,8 +375,12 @@ if __name__ == '__main__':
 
     testing_dataset = TestingDataset(testing_sequence_dataframe, validation_augmentation_pipeline(),
                                      testing_folder_to_identifiers)
-    testing_loader = DataLoader(testing_dataset, batch_size=batch_size, shuffle=False,
+    testing_loader = DataLoader(testing_dataset, batch_size=batch_size_testing, shuffle=False,
                                 num_workers=num_workers, collate_fn=collate_fn, pin_memory=True)
+
+    dataset_size = {
+        "test": len(testing_loader.dataset)
+    }
 
     log.info(f"Dataloaders Created")
 
@@ -388,6 +416,7 @@ if __name__ == '__main__':
         "val": []
     }
 
-    model = train_model(model, criterion, optimizer_ft, lr_scheduler, 25)
+    # model = train_model(model, criterion, optimizer_ft, lr_scheduler, 25)
+    evaluate(model, 1)
 
 
