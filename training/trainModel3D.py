@@ -24,7 +24,7 @@ from torch.utils.data import DataLoader, Dataset
 
 
 from utilities import SEQUENCE_DATAFRAME_PATH, REAL_FOLDER_TO_IDENTIFIERS_PATH, FAKE_FOLDER_TO_IDENTIFIERS_PATH,\
-    VALIDATION_DATAFRAME_PATH
+    VALIDATION_DATAFRAME_PATH, SEQUENCE_DATAFRAME_TESTING_PATH
 from training.augmentations import augmentation_pipeline_3D, gaussian_noise_transform_3D
 from training.DeepfakeDataset import ValidationDataset
 from training.trainModel import collate_fn
@@ -45,6 +45,66 @@ encoder_params_3D = {
                            drop_rate=0.5)
     }
 }
+
+
+class TestingDataset(Dataset):
+    """ Deepfake Validation Dataset """
+
+    def __init__(self, testing_dataframe, augmentations, path_to_identifiers_dictionary,
+                 image_width=224, image_height=192):
+
+        self.image_width = image_width
+        self.image_height = image_height
+        self.path_to_identifiers = path_to_identifiers_dictionary
+
+        if 'index' in testing_dataframe:
+            del testing_dataframe['index']
+
+        self.testing_dataframe = testing_dataframe
+        self.augmentate = augmentations
+
+    def __getitem__(self, index):
+        row = self.testing_dataframe.iloc[index]
+        folder_name = row["faces_folder"]
+        label = row["label"]
+
+        identifiers = self.path_to_identifiers[folder_name]
+        prev_state = random.getstate()
+        if len(identifiers > 10):
+            sequence = self.load_sequence(identifiers[4:9], folder_name, prev_state)
+            # sequence = np.stack([self.load_img(full_prefix, identifier) for identifier in indices])
+        elif len(identifiers) >= 5:
+            sequence = self.load_sequence(identifiers[0:5], folder_name, prev_state)
+            # sequence = np.stack([self.load_img(full_prefix, identifier) for identifier in indices])
+        else:
+            log.info("Failed to get Sequence")
+            return None
+
+        return sequence, label
+
+    def __len__(self):
+        return len(self.testing_dataframe)
+
+    def load_sequence(self, indices, image_folder, prev_state):
+        prefix = ntpath.basename(image_folder)
+        full_prefix = os.path.join(image_folder, prefix)
+        sequence_images = [self.load_img(full_prefix, identifier) for identifier in indices]
+        transformed_image_sequence = []
+        for img in sequence_images:
+            random.setstate(prev_state)
+            image_transformed = self.augmentate(image=img)["image"]
+            image_transformed = img_to_tensor(image_transformed, {"mean": MEAN,
+                                                                  "std": STD})
+            transformed_image_sequence.append(image_transformed)
+
+        return transformed_image_sequence
+
+    def load_img(self, sequence_path, idx):
+        full_image_path = sequence_path + "_{}.png".format(idx)
+        img = cv2.imread(full_image_path)
+        img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
+
+        return img
 
 
 class DeepFakeDataset3D(Dataset):
@@ -114,8 +174,8 @@ class DeepFakeDataset3D(Dataset):
 
         return transformed_image_sequence
 
-    def load_img(self, track_path, idx):
-        full_image_path = track_path + "_{}.png".format(idx)
+    def load_img(self, sequence_path, idx):
+        full_image_path = sequence_path + "_{}.png".format(idx)
         img = cv2.imread(full_image_path)
         img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
 
@@ -258,12 +318,12 @@ if __name__ == '__main__':
                               pin_memory=True, collate_fn=collate_fn, drop_last=True)
 
     # need to create testing dataset
-    # validation_dataframe = pd.read_csv(VALIDATION_DATAFRAME_PATH)
-    #
-    # validation_dataset = ValidationDataset(validation_dataframe, validation_augmentation_pipeline())
-    #
-    # validation_loader = DataLoader(validation_dataset, batch_size=batch_size, shuffle=False,
-    #                                num_workers=num_workers, pin_memory=True)
+    validation_dataframe = pd.read_csv(VALIDATION_DATAFRAME_PATH)
+
+    validation_dataset = ValidationDataset(validation_dataframe, validation_augmentation_pipeline())
+
+    validation_loader = DataLoader(validation_dataset, batch_size=batch_size, shuffle=False,
+                                   num_workers=num_workers, pin_memory=True)
 
     ## create validation dataloaders
 

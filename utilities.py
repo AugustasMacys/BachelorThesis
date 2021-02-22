@@ -50,9 +50,12 @@ PRIVATE_TESTING_LABELS_PATH = os.path.join(PRIVATE_TESTING_DIRECTORY, "labels_up
 
 SEQUENCE_DATAFRAMES_FOLDER = os.path.join(ROOT_DIR, "dataframes_3dcnn")
 SEQUENCE_DATAFRAME_PATH = os.path.join(SEQUENCE_DATAFRAMES_FOLDER, "3dcnn_dataframe.csv")
+SEQUENCE_DATAFRAME_TESTING_PATH = os.path.join(SEQUENCE_DATAFRAMES_FOLDER, "3dtesting_dataframe.csv")
 
 REAL_FOLDER_TO_IDENTIFIERS_PATH = os.path.join(ROOT_DIR, "real_folder_to_identifiers.pkl")
 FAKE_FOLDER_TO_IDENTIFIERS_PATH = os.path.join(ROOT_DIR, "fake_folder_to_identifiers.pkl")
+
+
 
 
 EFFICIENT_B0_SIZE = 224

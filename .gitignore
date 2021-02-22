@@ -184,4 +184,5 @@ inference/scores_efficient_net4_private_test_set.csv
 fake_folder_to_identifiers.pkl
 real_folder_to_identifiers.pkl
 training/FindModel.py
-
+dataframes_3dcnn/
+testing_folder_to_identifiers.pkl
