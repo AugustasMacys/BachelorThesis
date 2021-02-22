@@ -11,7 +11,7 @@ from training.augmentations import augmentation_pipeline, validation_augmentatio
 from training.trainUtilities import Unnormalize
 from utilities import NOISY_STUDENT_DIRECTORY, MODELS_DIECTORY, \
     VALIDATION_DATAFRAME_PATH, TRAINING_DATAFRAME_PATH, RESNET_FOLDER, PAIR_REAL_DATAFRAME, PAIR_FAKE_DATAFRAME, \
-    PAIR_REAL_DATAFRAME3, PAIR_FAKE_DATAFRAME3, PAIR_FAKE_DATAFRAME2, PAIR_REAL_DATAFRAME2, MASKS_FOLDER
+    MASKS_FOLDER
 from training.DeepfakeDataset import DeepfakeDataset, ValidationDataset
 
 from xray.Dataset_XRay import XRayDataset
@@ -55,10 +55,19 @@ class DeepfakeClassifier(nn.Module):
         self.fc = Linear(encoder_params["tf_efficientnet_b4_ns"]["features"], 1)
 
     def forward(self, x):
+        print(x.shape)
         x = self.encoder.forward_features(x)
+        print(x.shape)
+        # x = self.avg_pool(x).flatten(1)
+        b = self.avg_pool(x)
+        print(b.shape)
         x = self.avg_pool(x).flatten(1)
+        print(x.shape)
+        exit(0)
         x = self.dropout(x)
+        print(x.shape)
         x = self.fc(x)
+        exit(0)
         return x
 
 
@@ -104,13 +113,6 @@ def collate_fn(batch):
 def create_data_loaders(batch_size, num_workers, non_existing_files=None, X_RAY=False):
     train_real_df = pd.read_csv(PAIR_REAL_DATAFRAME)
     train_fake_df = pd.read_csv(PAIR_FAKE_DATAFRAME)
-    train_real_df2 = pd.read_csv(PAIR_REAL_DATAFRAME2)
-    train_fake_df2 = pd.read_csv(PAIR_FAKE_DATAFRAME2)
-    train_real_df3 = pd.read_csv(PAIR_REAL_DATAFRAME3)
-    train_fake_df3 = pd.read_csv(PAIR_FAKE_DATAFRAME3)
-
-    result_real_df = pd.concat([train_real_df, train_real_df2, train_real_df3], ignore_index=True)
-    result_fake_df = pd.concat([train_fake_df, train_fake_df2, train_fake_df3], ignore_index=True)
 
     val_df = pd.read_csv(VALIDATION_DATAFRAME_PATH)
 
@@ -119,14 +121,14 @@ def create_data_loaders(batch_size, num_workers, non_existing_files=None, X_RAY=
             non_existing_files = pickle.load(fp)
 
     if X_RAY:
-        train_dataset = XRayDataset(result_real_df, result_fake_df, xray_augmentation_pipeline(),
+        train_dataset = XRayDataset(train_real_df, train_fake_df, xray_augmentation_pipeline(),
                                     MASKS_FOLDER)
 
         train_loader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True, num_workers=num_workers,
                                   pin_memory=True, collate_fn=collate_fn)
 
     else:
-        train_dataset = DeepfakeDataset(result_real_df, result_fake_df, augmentation_pipeline(), non_existing_files)
+        train_dataset = DeepfakeDataset(train_real_df, train_fake_df, augmentation_pipeline(), non_existing_files)
 
         train_loader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True, num_workers=num_workers,
                                   pin_memory=True, collate_fn=collate_fn)
@@ -197,6 +199,7 @@ def train_model(model, criterion, optimizer, scheduler, epochs):
             # zero the parameter gradients
             optimizer.zero_grad()
 
+            print("input tensor shape: {}".format(input_tensor.shape))
             outputs = model(input_tensor)
             y_pred = outputs.squeeze()
 

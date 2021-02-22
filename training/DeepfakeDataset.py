@@ -75,8 +75,8 @@ class DeepfakeDataset(Dataset):
         fake_image_name = row_fake["image_path"]
 
         # Will go here from second epoch
-        if real_image_name in self.non_existing_files or fake_image_name in self.non_existing_files:
-            return None
+        # if real_image_name in self.non_existing_files or fake_image_name in self.non_existing_files:
+        #     return None
 
         try:
             img_real = Image.open(real_image_name).convert("RGB")

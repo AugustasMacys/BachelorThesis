@@ -9,16 +9,17 @@ import time
 
 
 from albumentations.pytorch.functional import img_to_tensor
+from albumentations.augmentations.functional import resize
 import cv2
 import numpy as np
 import pandas as pd
 from timm.models.efficientnet_blocks import InvertedResidual
-from timm.models.efficientnet import tf_efficientnet_l2_ns_475
+from timm.models.efficientnet import tf_efficientnet_l2_ns_475, tf_efficientnet_b0_ns
 import torch
 from torch import distributions
 from torch.optim import lr_scheduler
 import torch.optim as optim
-from torch.nn import functional as F, Dropout, Linear, AdaptiveAvgPool3d
+from torch.nn import functional as F, Dropout, Linear, AdaptiveAvgPool2d
 import torch.nn as nn
 from torch.utils.data import DataLoader, Dataset
 
@@ -43,6 +44,12 @@ encoder_params_3D = {
                            num_classes=1,
                            pretrained=True,
                            drop_rate=0.5)
+    },
+    "tf_efficientnet_b0_ns": {
+        "features": 1280,
+        "init_op": partial(tf_efficientnet_b0_ns,
+                           num_classes=1,
+                           pretrained=True)
     }
 }
 
@@ -69,7 +76,7 @@ class TestingDataset(Dataset):
         label = row["label"]
 
         identifiers = self.path_to_identifiers[folder_name]
-        if len(identifiers > 10):
+        if len(identifiers) > 10:
             sequence = self.load_sequence(identifiers[4:9], folder_name)
             # sequence = np.stack([self.load_img(full_prefix, identifier) for identifier in indices])
         elif len(identifiers) >= 5:
@@ -128,7 +135,7 @@ class DeepFakeDataset3D(Dataset):
 
         real_identifiers = self.real_to_identifiers[real_image_folder]
         prev_state = random.getstate()
-        if len(real_identifiers > 10):
+        if len(real_identifiers) > 10:
             real_sequence = self.load_sequence(real_identifiers[4:9], real_image_folder, prev_state)
             # sequence = np.stack([self.load_img(full_prefix, identifier) for identifier in indices])
         elif len(real_identifiers) >= 5:
@@ -140,7 +147,7 @@ class DeepFakeDataset3D(Dataset):
 
         random.setstate(prev_state)
         fake_identifiers = self.fake_to_identifiers[fake_image_folder]
-        if len(fake_identifiers > 10):
+        if len(fake_identifiers) > 10:
             fake_sequence = self.load_sequence(fake_identifiers[4:9], fake_image_folder, prev_state)
             # sequence = np.stack([self.load_img(full_prefix, identifier) for identifier in indices])
         elif len(fake_identifiers) >= 5:
@@ -168,12 +175,15 @@ class DeepFakeDataset3D(Dataset):
         for img in sequence_images:
             random.setstate(prev_state)
             image_transformed = self.augmentate(image=img)["image"]
+            image_transformed = resize(image_transformed, height=self.image_height,
+                                       width=self.image_width)
             image_transformed = gaussian_noise_transform_3D(image=image_transformed)["image"]
             image_transformed = img_to_tensor(image_transformed, {"mean": MEAN,
                                                                   "std": STD})
             transformed_image_sequence.append(image_transformed)
 
-        return transformed_image_sequence
+        # return transformed_image_sequence
+        return np.stack(transformed_image_sequence)
 
     def load_img(self, sequence_path, idx):
         full_image_path = sequence_path + "_{}.png".format(idx)
@@ -187,9 +197,25 @@ class DeepfakeClassifier3D(nn.Module):
     def __init__(self, dropout_rate=0.2):
         super().__init__()
         self.encoder = encoder_params_3D["tf_efficientnet_l2_ns_475"]["init_op"]()
-        self.avg_pool = AdaptiveAvgPool3d((1, 1, 1))
+        self.avg_pool = AdaptiveAvgPool2d((1, 1))
         self.dropout = Dropout(dropout_rate)
         self.fc = Linear(encoder_params_3D["tf_efficientnet_l2_ns_475"]["features"], 1)
+
+    def forward(self, x):
+        x = self.encoder.forward_features(x)
+        x = self.avg_pool(x).flatten(1)
+        x = self.dropout(x)
+        x = self.fc(x)
+        return x
+
+
+class DeepfakeClassifier3D_V2(nn.Module):
+    def __init__(self, dropout_rate=0.2):
+        super().__init__()
+        self.encoder = encoder_params_3D["tf_efficientnet_b0_ns"]["init_op"]()
+        self.avg_pool = AdaptiveAvgPool2d((1, 1))
+        self.dropout = Dropout(dropout_rate)
+        self.fc = Linear(encoder_params_3D["tf_efficientnet_b0_ns"]["features"], 1)
 
     def forward(self, x):
         x = self.encoder.forward_features(x)
@@ -234,9 +260,11 @@ def train_model(model, criterion, optimizer, scheduler, epochs):
             # Will need to debug the data loader
             iteration += 1
             batch_number += 1
+
             fake_image_sequence = pairs['fake'].to(gpu)
             real_image_sequence = pairs['real'].to(gpu)
-            target = probability_distribution.sample((len(fake_image_sequence),)).float().to(gpu)
+
+            target = probability_distribution.sample((len(real_image_sequence),)).float().to(gpu)
             fake_weight = target.view(-1, 1, 1, 1, 1)
 
             input_tensor = (1.0 - fake_weight) * real_image_sequence + fake_weight * fake_image_sequence
@@ -246,14 +274,18 @@ def train_model(model, criterion, optimizer, scheduler, epochs):
 
             # zero the parameter gradients
             optimizer.zero_grad()
-
-            outputs = model(input_tensor)
+            outputs = model(input_tensor.flatten(0, 1))
+            # outputs = model(input_tensor)
+            print(outputs.shape)
+            exit(0)
             y_pred = outputs.squeeze()
 
             loss = criterion(y_pred, target)
 
             loss.backward()
             optimizer.step()
+
+            exit(0)
 
             # statistics
             running_training_loss += loss.item() * current_batch_size
@@ -268,8 +300,6 @@ def train_model(model, criterion, optimizer, scheduler, epochs):
 
             if batch_number >= BATCHES_PER_EPOCH:
                 break
-
-            # scheduler.step()
 
         epoch_loss = running_training_loss / total_examples
         log.info('Training Loss: {:.4f}'.format(epoch_loss))
@@ -330,7 +360,8 @@ if __name__ == '__main__':
 
     log.info(f"Dataloaders Created")
 
-    model = DeepfakeClassifier3D()
+    # model = DeepfakeClassifier3D()
+    model = DeepfakeClassifier3D_V2()
 
     for module in model.modules():
         if isinstance(module, InvertedResidual):
@@ -348,7 +379,7 @@ if __name__ == '__main__':
     log.info("Model is initialised")
 
     criterion = F.binary_cross_entropy_with_logits
-    optimizer_ft = optim.SGD(model.parameters(), lr=0.01, momentum=0.9,
+    optimizer_ft = optim.SGD(model.parameters(), lr=0.005, momentum=0.9,
                              weight_decay=1e-4, nesterov=True)
     lr_scheduler = lr_scheduler.StepLR(optimizer_ft, step_size=1, gamma=0.9)
 
@@ -360,8 +391,6 @@ if __name__ == '__main__':
         "train": [],
         "val": []
     }
-
-    exit(0)
 
     model = train_model(model, criterion, optimizer_ft, lr_scheduler, 25)
 
