@@ -83,7 +83,7 @@ class TestingDataset(Dataset):
         elif len(identifiers) >= 5:
             sequence = self.load_sequence(identifiers[0:5], folder_name)
         else:
-            log.info("Failed to get Sequence")
+            log.info(f"Failed to get Sequence: {folder_name}")
             return None
 
         return sequence, label
@@ -141,7 +141,7 @@ class DeepFakeDataset3D(Dataset):
         elif len(real_identifiers) >= 5:
             real_sequence = self.load_sequence(real_identifiers[0:5], real_image_folder, prev_state)
         else:
-            log.info("Failed to get Real Sequence")
+            log.info(f"Failed to get Real Sequence: {real_image_folder}")
             return None
 
         random.setstate(prev_state)
@@ -151,7 +151,7 @@ class DeepFakeDataset3D(Dataset):
         elif len(fake_identifiers) >= 5:
             fake_sequence = self.load_sequence(fake_identifiers[0:5], fake_image_folder, prev_state)
         else:
-            log.info("Failed to get Fake Sequence")
+            log.info(f"Failed to get Fake Sequence: {fake_image_folder}")
             return None
 
         sequence_pair = {
@@ -179,7 +179,6 @@ class DeepFakeDataset3D(Dataset):
                                                                   "std": STD})
             transformed_image_sequence.append(image_transformed)
 
-        # return transformed_image_sequence
         return np.stack(transformed_image_sequence)
 
     def load_img(self, sequence_path, idx):
@@ -239,6 +238,8 @@ class ConvolutionExpander(nn.Module):
 def evaluate(model, minimum_loss):
     model.eval()
     running_loss = 0
+    total_examples_test = 0
+    debugging_loss = 0
 
     for sequence, labels in testing_loader:
         with torch.no_grad():
@@ -246,16 +247,20 @@ def evaluate(model, minimum_loss):
             labels = labels.to(gpu)
 
             sequence = sequence.squeeze()
-            outputs = model(sequence)
+            outputs = model(sequence.flatten(0, 1))
             y_pred = outputs.squeeze()
 
             labels = labels.type_as(y_pred)
+
             loss = criterion(y_pred, labels.repeat_interleave(SEQUENCE_LENGTH))
 
             # need to track all images
+            total_examples_test += sequence.size(0)
             running_loss += loss.item() * sequence.size(0)
+            debugging_loss += loss.item()
 
-    total_loss = running_loss / dataset_size["test"]
+    log.info('Debugging Loss: {:4f}'.format(debugging_loss))
+    total_loss = running_loss / total_examples_test
     log.info('Validation Loss: {:4f}'.format(total_loss))
 
     if total_loss < minimum_loss:
@@ -266,7 +271,7 @@ def evaluate(model, minimum_loss):
 
 def train_model(model, criterion, optimizer, scheduler, epochs):
     since = time.time()
-    minimum_loss = 0.70
+    minimum_loss = 1
     iteration = 0
 
     for epoch in range(epochs):
@@ -311,7 +316,7 @@ def train_model(model, criterion, optimizer, scheduler, epochs):
 
             # statistics
             running_training_loss += loss.item() * current_batch_size
-            if batch_number % 250 == 0:
+            if batch_number % 250 == 0 and batch_number != 0:
                 log.info("New 250 batches are evaluated")
                 log.info("Batch Number: {}".format(batch_number))
                 time_elapsed = time.time() - since
@@ -359,8 +364,8 @@ if __name__ == '__main__':
     with open(FAKE_FOLDER_TO_IDENTIFIERS_PATH, 'rb') as handle:
         fake_folder_to_identifiers = pickle.load(handle)
 
-    batch_size = 2
-    batch_size_testing = 1
+    batch_size = 4
+    batch_size_testing = 4
     num_workers = 2
 
     train_dataset = DeepFakeDataset3D(sequence_dataframe, real_folder_to_identifiers, fake_folder_to_identifiers,
@@ -416,7 +421,5 @@ if __name__ == '__main__':
         "val": []
     }
 
-    # model = train_model(model, criterion, optimizer_ft, lr_scheduler, 25)
-    evaluate(model, 1)
-
+    model = train_model(model, criterion, optimizer_ft, lr_scheduler, 25)
 
