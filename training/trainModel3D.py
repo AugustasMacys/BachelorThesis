@@ -14,7 +14,7 @@ import cv2
 import numpy as np
 import pandas as pd
 from timm.models.efficientnet_blocks import InvertedResidual
-from timm.models.efficientnet import tf_efficientnet_l2_ns_475, tf_efficientnet_b0_ns
+from timm.models.efficientnet import tf_efficientnet_l2_ns_475, tf_efficientnet_b0_ns, tf_efficientnet_b4_ns
 import torch
 from torch import distributions
 from torch.optim import lr_scheduler
@@ -50,6 +50,12 @@ encoder_params_3D = {
     "tf_efficientnet_b0_ns": {
         "features": 1280,
         "init_op": partial(tf_efficientnet_b0_ns,
+                           num_classes=1,
+                           pretrained=True)
+    },
+    "tf_efficientnet_b4_ns": {
+        "features": 1792,
+        "init_op": partial(tf_efficientnet_b4_ns,
                            num_classes=1,
                            pretrained=True)
     }
@@ -206,12 +212,28 @@ class DeepfakeClassifier3D(nn.Module):
 
 
 class DeepfakeClassifier3D_V2(nn.Module):
-    def __init__(self, dropout_rate=0.2):
+    def __init__(self, dropout_rate=0.1):
         super().__init__()
         self.encoder = encoder_params_3D["tf_efficientnet_b0_ns"]["init_op"]()
         self.avg_pool = AdaptiveAvgPool2d((1, 1))
         self.dropout = Dropout(dropout_rate)
         self.fc = Linear(encoder_params_3D["tf_efficientnet_b0_ns"]["features"], 1)
+
+    def forward(self, x):
+        x = self.encoder.forward_features(x)
+        x = self.avg_pool(x).flatten(1)
+        x = self.dropout(x)
+        x = self.fc(x)
+        return x
+
+
+class DeepfakeClassifier3D_V3(nn.Module):
+    def __init__(self, dropout_rate=0.1):
+        super().__init__()
+        self.encoder = encoder_params_3D["tf_efficientnet_b4_ns"]["init_op"]()
+        self.avg_pool = AdaptiveAvgPool2d((1, 1))
+        self.dropout = Dropout(dropout_rate)
+        self.fc = Linear(encoder_params_3D["tf_efficientnet_b4_ns"]["features"], 1)
 
     def forward(self, x):
         x = self.encoder.forward_features(x)
@@ -383,14 +405,10 @@ if __name__ == '__main__':
     testing_loader = DataLoader(testing_dataset, batch_size=batch_size_testing, shuffle=False,
                                 num_workers=num_workers, collate_fn=collate_fn, pin_memory=True)
 
-    dataset_size = {
-        "test": len(testing_loader.dataset)
-    }
-
     log.info(f"Dataloaders Created")
 
     # model = DeepfakeClassifier3D()
-    model = DeepfakeClassifier3D_V2()
+    model = DeepfakeClassifier3D_V3()
 
     for module in model.modules():
         if isinstance(module, InvertedResidual):

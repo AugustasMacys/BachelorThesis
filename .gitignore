@@ -186,3 +186,9 @@ real_folder_to_identifiers.pkl
 training/FindModel.py
 dataframes_3dcnn/
 testing_folder_to_identifiers.pkl
+google_cloud_pickle_objects/
+trained_models/
+dataframes_google_cloud_3d/
+training/training_cloud.py
+3dcnn_dataframe.csv
+3dtesting_dataframe.csv
