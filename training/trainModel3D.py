@@ -35,9 +35,11 @@ log = logging.getLogger(__name__)
 
 
 SEQUENCE_LENGTH = 5
-MAX_ITERATIONS = 100000
+MAX_ITERATIONS = 2500000
+MAX_ITERATIONS_BATCH = 20000
 
-model_save_path = os.path.join(MODELS_DIECTORY, "3Dmodel")
+model_save_path = os.path.join(MODELS_DIECTORY, "3Dnew_model")
+pretrained_weights_path = os.path.join(MODELS_DIECTORY, "3Dmodel1.pth")
 
 encoder_params_3D = {
     "tf_efficientnet_l2_ns_475": {
@@ -293,7 +295,7 @@ def evaluate(model, minimum_loss):
 
 def train_model(model, criterion, optimizer, scheduler, epochs):
     since = time.time()
-    minimum_loss = 1
+    minimum_loss = 0.45
     iteration = 0
 
     for epoch in range(epochs):
@@ -347,6 +349,9 @@ def train_model(model, criterion, optimizer, scheduler, epochs):
                 max_lr = max(param_group["lr"] for param_group in optimizer.param_groups)
                 log.info("iteration: {}, max_lr: {}".format(iteration, max_lr))
 
+            if batch_number >= MAX_ITERATIONS_BATCH:
+                break
+
         epoch_loss = running_training_loss / total_examples
         log.info('Training Loss: {:.4f}'.format(epoch_loss))
         history["train"].append(epoch_loss)
@@ -370,8 +375,6 @@ def train_model(model, criterion, optimizer, scheduler, epochs):
         time_elapsed // 60, time_elapsed % 60))
     log.info('Loss: {:4f}'.format(minimum_loss))
 
-    # load best model weights
-    model.load_state_dict(torch.load(model_save_path))
     return model
 
 
@@ -407,7 +410,6 @@ if __name__ == '__main__':
 
     log.info(f"Dataloaders Created")
 
-    # model = DeepfakeClassifier3D()
     model = DeepfakeClassifier3D_V3()
 
     for module in model.modules():
@@ -421,12 +423,13 @@ if __name__ == '__main__':
                 expander.conv.weight.data[:, :, 2, :, :].copy_(expansion_con.weight.data / 3)
                 module.conv_pw = expander
 
+    model.load_state_dict(torch.load(pretrained_weights_path))
     model.to(gpu)
 
     log.info("Model is initialised")
 
     criterion = F.binary_cross_entropy_with_logits
-    optimizer_ft = optim.SGD(model.parameters(), lr=0.005, momentum=0.9,
+    optimizer_ft = optim.SGD(model.parameters(), lr=0.0001, momentum=0.9,
                              weight_decay=1e-4, nesterov=True)
     lr_scheduler = lr_scheduler.StepLR(optimizer_ft, step_size=1, gamma=0.9)
 
