@@ -192,3 +192,7 @@ dataframes_google_cloud_3d/
 training/training_cloud.py
 3dcnn_dataframe.csv
 3dtesting_dataframe.csv
+coviar/
+coviar_dataframes/
+special_video_change_format/
+reencode.sh
