@@ -8,6 +8,7 @@ import cv2
 def color_aug(img, random_h=36, random_l=50, random_s=50):
     img = cv2.cvtColor(img, cv2.COLOR_BGR2HLS).astype(float)
 
+    # random.setstate(prev_state)
     h = (random.random() * 2 - 1.0) * random_h
     l = (random.random() * 2 - 1.0) * random_l
     s = (random.random() * 2 - 1.0) * random_s

@@ -137,9 +137,11 @@ class CoviarDataSet(data.Dataset):
 
             if self._representation == 'iframe':
                 # BGR to RGB. (PyTorch uses RGB according to doc.)
+                prev_state = random.getstate()
                 img_real = color_aug(img_real)
                 img_real = img_real[..., ::-1]
 
+                random.setstate(prev_state)
                 img_fake = color_aug(img_fake)
                 img_fake = img_fake[..., ::-1]
 
