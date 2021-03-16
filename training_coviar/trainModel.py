@@ -24,9 +24,7 @@ from utilities import COVIAR_DATAFRAME_PATH, MODELS_DIECTORY
 
 log = logging.getLogger(__name__)
 
-SAVE_FREQ = 40
 PRINT_FREQ = 250
-best_prec1 = 0
 
 model_save_path = os.path.join(MODELS_DIECTORY, "coviar_model")
 
@@ -82,14 +80,14 @@ def train(train_loader, model, criterion, optimizer, epoch, cur_lr):
                             lr=cur_lr)))
 
 
-def evaluate(val_loader, model, criterion):
+def evaluate(model, criterion):
     batch_time = AverageMeter()
     losses = AverageMeter()
 
     model.eval()
 
     end = time.time()
-    for i, (inputs, labels) in enumerate(val_loader):
+    for i, (inputs, labels) in enumerate(test_loader):
         inputs = inputs.to(gpu)
         labels = labels.to(gpu)
 
@@ -109,7 +107,7 @@ def evaluate(val_loader, model, criterion):
         if i % PRINT_FREQ == 0:
             log.info(('Test: [{0}/{1}]\t'
                       'Time {batch_time.val:.3f} ({batch_time.avg:.3f})\t'
-                      'Loss {loss.val:.4f} ({loss.avg:.4f})\t'.format(i, len(val_loader),
+                      'Loss {loss.val:.4f} ({loss.avg:.4f})\t'.format(i, len(test_loader),
                                                                       batch_time=batch_time,
                                                                       loss=losses)))
 
@@ -184,22 +182,21 @@ if __name__ == '__main__':
 
     log.info("Train Loader is prepared")
 
-    # val_loader = torch.utils.data.DataLoader(
-    #     CoviarDataSet(
-    #         args.data_root,
-    #         args.data_name,
-    #         video_list=args.test_list,
-    #         num_segments=args.num_segments,
-    #         representation=args.representation,
-    #         transform=torchvision.transforms.Compose([
-    #             GroupScale(int(model.scale_size)),
-    #             GroupCenterCrop(model.crop_size),
-    #         ]),
-    #         is_train=False,
-    #         accumulate=(not args.no_accumulation),
-    #     ),
-    #     batch_size=args.batch_size, shuffle=False,
-    #     num_workers=args.workers, pin_memory=True)
+    test_loader = torch.utils.data.DataLoader(
+        CoviarDataSet(
+            testing_dataframe,
+            num_segments=args.num_segments,
+            representation=args.representation,
+            transform=torchvision.transforms.Compose([
+                GroupScale(int(model.scale_size)),
+                GroupCenterCrop(model.crop_size),
+            ]),
+            is_train=False,
+            accumulate=(not args.no_accumulation),
+        ),
+        batch_size=args.batch_size, shuffle=False,
+        num_workers=args.workers, pin_memory=True)
+
     cudnn.benchmark = True
 
     params_dict = dict(model.named_parameters())
