@@ -62,7 +62,7 @@ def train(train_loader, model, criterion, optimizer, epoch, cur_lr):
         loss = criterion(output, target)
 
         # Might leave, but maybe not (come back) need to debug to make sure correct
-        losses.update(loss.data[0], input.size(0))
+        losses.update(loss.item(), input_tensor.shape[0])
 
         loss.backward()
         optimizer.step()
@@ -81,6 +81,7 @@ def train(train_loader, model, criterion, optimizer, epoch, cur_lr):
                             loss=losses,
                             lr=cur_lr)))
 
+
 def evaluate(val_loader, model, criterion):
     batch_time = AverageMeter()
     losses = AverageMeter()
@@ -88,32 +89,31 @@ def evaluate(val_loader, model, criterion):
     model.eval()
 
     end = time.time()
-    for i, (input, target) in enumerate(val_loader):
-        target = target.cuda(async=True)
-        input_var = torch.autograd.Variable(input, volatile=True)
-        target_var = torch.autograd.Variable(target, volatile=True)
+    for i, (inputs, labels) in enumerate(val_loader):
+        inputs = inputs.to(gpu)
+        labels = labels.to(gpu)
 
-        output = model(input_var)
-        output = output.view((-1, args.num_segments) + output.size()[1:])
-        output = torch.mean(output, dim=1)
-        loss = criterion(output, target_var)
+        outputs = model(inputs)
+        print(outputs.shape)
+        # output = output.view((-1, args.num_segments) + output.size()[1:])
+        # output = torch.mean(output, dim=1)
+        y_pred = outputs.squeeze()
+        labels = labels.type_as(y_pred)
+        loss = criterion(y_pred, labels)
 
-        losses.update(loss.data[0], input.size(0))
+        losses.update(loss.item(), inputs.size(0))
 
         batch_time.update(time.time() - end)
         end = time.time()
 
         if i % PRINT_FREQ == 0:
-            print(('Test: [{0}/{1}]\t'
-                   'Time {batch_time.val:.3f} ({batch_time.avg:.3f})\t'
-                   'Loss {loss.val:.4f} ({loss.avg:.4f})\t'
-                   'Prec@1 {top1.val:.3f} ({top1.avg:.3f})\t'
-                   'Prec@5 {top5.val:.3f} ({top5.avg:.3f})'.format(
-                       i, len(val_loader),
-                       batch_time=batch_time,
-                       loss=losses)))
+            log.info(('Test: [{0}/{1}]\t'
+                      'Time {batch_time.val:.3f} ({batch_time.avg:.3f})\t'
+                      'Loss {loss.val:.4f} ({loss.avg:.4f})\t'.format(i, len(val_loader),
+                                                                      batch_time=batch_time,
+                                                                      loss=losses)))
 
-    return top1.avg
+    return losses.avg
 
 
 class AverageMeter(object):
