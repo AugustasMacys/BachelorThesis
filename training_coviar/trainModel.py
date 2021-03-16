@@ -28,7 +28,7 @@ PRINT_FREQ = 250
 model_save_path = os.path.join(MODELS_DIECTORY, "coviar_model")
 
 
-def train(train_loader, model, criterion, optimizer, epoch, cur_lr):
+def train(model, criterion, optimizer, epoch, cur_lr):
     batch_time = AverageMeter()
     data_time = AverageMeter()
     losses = AverageMeter()
@@ -78,8 +78,10 @@ def train(train_loader, model, criterion, optimizer, epoch, cur_lr):
                             loss=losses,
                             lr=cur_lr)))
 
+    return losses.avg
 
-def evaluate(model, criterion):
+
+def evaluate(model):
     batch_time = AverageMeter()
     losses = AverageMeter()
 
@@ -145,7 +147,7 @@ if __name__ == '__main__':
     gpu = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
     history = {
         "train": [],
-        "val": []
+        "test": []
     }
     minimum_loss = 100
     log.info("Program Started")
@@ -174,7 +176,7 @@ if __name__ == '__main__':
             num_segments=args.num_segments,
             representation=args.representation,
             transform=model.get_augmentation(),
-            accumulate=(not args.no_accumulation),
+            accumulate=(not args.accumulation),
         ),
         batch_size=args.batch_size, shuffle=True,
         num_workers=args.workers, pin_memory=True)
@@ -188,7 +190,7 @@ if __name__ == '__main__':
                 GroupScale(int(model.scale_size)),
                 GroupCenterCrop(model.crop_size),
             ]),
-            accumulate=(not args.no_accumulation),
+            accumulate=(not args.accumulation),
         ),
         batch_size=args.batch_size, shuffle=False,
         num_workers=args.workers, pin_memory=True)
@@ -213,6 +215,7 @@ if __name__ == '__main__':
 
         params += [{'params': value, 'lr': args.lr, 'lr_mult': lr_mult, 'decay_mult': decay_mult}]
 
+    log.info("Model prepared")
     optimizer = torch.optim.Adam(
         params,
         weight_decay=args.weight_decay,
@@ -222,9 +225,10 @@ if __name__ == '__main__':
     for epoch in range(args.epochs):
         cur_lr = adjust_learning_rate(optimizer, epoch, args.lr_steps, args.lr_decay)
 
-        train(train_loader, model, criterion, optimizer, epoch, cur_lr)
+        training_loss = train(model, criterion, optimizer, epoch, cur_lr)
+        history["train"].append(training_loss)
 
-        testing_loss = evaluate(model, minimum_loss)
+        testing_loss = evaluate(model)
         history["test"].append(testing_loss)
 
         log.info(history)
@@ -235,3 +239,5 @@ if __name__ == '__main__':
             log.info("Minimum loss is: {}".format(minimum_loss))
             path_model = model_save_path + str(epoch) + ".pth"
             torch.save(model.state_dict(), path_model)
+
+    log.info("Training is finished")

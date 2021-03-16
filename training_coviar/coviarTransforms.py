@@ -104,6 +104,7 @@ class GroupOverSample(object):
 
         return oversample_group
 
+
 def resize_mv(img, shape, interpolation):
     return np.stack([cv2.resize(img[..., i], shape, interpolation)
                      for i in range(2)], axis=2)
