@@ -13,7 +13,7 @@ from torch.nn import functional as F
 import torch.nn.parallel
 import torchvision
 
-from training_coviar.dataset import CoviarDataSet
+from training_coviar.dataset import CoviarDataSet, CoviarTestDataSet
 from training_coviar.coviarModel import Model
 from train_options import parser
 from training_coviar.coviarTransforms import GroupCenterCrop
@@ -167,6 +167,7 @@ if __name__ == '__main__':
     log.info("Model is prepared")
 
     training_dataframe = pd.read_csv(COVIAR_DATAFRAME_PATH)
+    testing_dataframe = pd.read_csv(COVIAR_DATAFRAME_PATH)
 
     train_loader = torch.utils.data.DataLoader(
         CoviarDataSet(
@@ -174,7 +175,6 @@ if __name__ == '__main__':
             num_segments=args.num_segments,
             representation=args.representation,
             transform=model.get_augmentation(),
-            is_train=True,
             accumulate=(not args.no_accumulation),
         ),
         batch_size=args.batch_size, shuffle=True,
@@ -183,7 +183,7 @@ if __name__ == '__main__':
     log.info("Train Loader is prepared")
 
     test_loader = torch.utils.data.DataLoader(
-        CoviarDataSet(
+        CoviarTestDataSet(
             testing_dataframe,
             num_segments=args.num_segments,
             representation=args.representation,
@@ -191,7 +191,6 @@ if __name__ == '__main__':
                 GroupScale(int(model.scale_size)),
                 GroupCenterCrop(model.crop_size),
             ]),
-            is_train=False,
             accumulate=(not args.no_accumulation),
         ),
         batch_size=args.batch_size, shuffle=False,
