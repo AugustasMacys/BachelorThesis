@@ -1,11 +1,13 @@
 """Run training."""
 import logging
+import os
 import shutil
 import time
 import numpy as np
 import pandas as pd
 
 import torch
+from torch import distributions
 import torch.backends.cudnn as cudnn
 from torch.nn import functional as F
 import torch.nn.parallel
@@ -18,46 +20,49 @@ from training_coviar.coviarTransforms import GroupCenterCrop
 from training_coviar.coviarTransforms import GroupScale
 
 import config_logger
-from utilities import COVIAR_DATAFRAME_PATH
+from utilities import COVIAR_DATAFRAME_PATH, MODELS_DIECTORY
 
 log = logging.getLogger(__name__)
 
 SAVE_FREQ = 40
-PRINT_FREQ = 20
+PRINT_FREQ = 250
 best_prec1 = 0
+
+model_save_path = os.path.join(MODELS_DIECTORY, "coviar_model")
 
 
 def train(train_loader, model, criterion, optimizer, epoch, cur_lr):
     batch_time = AverageMeter()
     data_time = AverageMeter()
     losses = AverageMeter()
-    top1 = AverageMeter()
-    top5 = AverageMeter()
 
     model.train()
 
     end = time.time()
 
-    for i, (input, target) in enumerate(train_loader):
-
+    for i, pairs in enumerate(train_loader):
         data_time.update(time.time() - end)
 
-        target = target.cuda(async=True)
-        input_var = torch.autograd.Variable(input)
-        target_var = torch.autograd.Variable(target)
+        real_input = pairs["real"].to(gpu)
+        fake_input = pairs["fake"].to(gpu)
 
-        output = model(input_var)
-        output = output.view((-1, args.num_segments) + output.size()[1:])
-        output = torch.mean(output, dim=1)
+        target = probability_distribution.sample((len(fake_input),)).float().to(gpu)
+        fake_weight = target.view(-1, 1, 1, 1)
 
-        loss = criterion(output, target_var)
+        input_tensor = (1.0 - fake_weight) * real_input + fake_weight * fake_input
 
-        prec1, prec5 = accuracy(output.data, target, topk=(1, 5))
-        losses.update(loss.data[0], input.size(0))
-        top1.update(prec1[0], input.size(0))
-        top5.update(prec5[0], input.size(0))
-
+        # zero the parameter gradients
         optimizer.zero_grad()
+
+        output = model(input_tensor)
+        print(output.shape)
+        output = output.view((-1, args.num_segments) + output.size()[1:])
+        print(output.shape)
+
+        loss = criterion(output, target)
+
+        # Might leave, but maybe not (come back) need to debug to make sure correct
+        losses.update(loss.data[0], input.size(0))
 
         loss.backward()
         optimizer.step()
@@ -66,25 +71,19 @@ def train(train_loader, model, criterion, optimizer, epoch, cur_lr):
         end = time.time()
 
         if i % PRINT_FREQ == 0:
-            print(('Epoch: [{0}][{1}/{2}], lr: {lr:.7f}\t'
-                   'Time {batch_time.val:.3f} ({batch_time.avg:.3f})\t'
-                   'Data {data_time.val:.3f} ({data_time.avg:.3f})\t'
-                   'Loss {loss.val:.4f} ({loss.avg:.4f})\t'
-                   'Prec@1 {top1.val:.3f} ({top1.avg:.3f})\t'
-                   'Prec@5 {top5.val:.3f} ({top5.avg:.3f})'.format(
-                       epoch, i, len(train_loader),
-                       batch_time=batch_time,
-                       data_time=data_time,
-                       loss=losses,
-                       top1=top1,
-                       top5=top5,
-                       lr=cur_lr)))
+            log.info(('Epoch: [{0}][{1}/{2}], lr: {lr:.7f}\t'
+                      'Time {batch_time.val:.3f} ({batch_time.avg:.3f})\t'
+                      'Data {data_time.val:.3f} ({data_time.avg:.3f})\t'
+                      'Loss {loss.val:.4f} ({loss.avg:.4f})\t'.format(
+                            epoch, i, len(train_loader),
+                            batch_time=batch_time,
+                            data_time=data_time,
+                            loss=losses,
+                            lr=cur_lr)))
 
-def validate(val_loader, model, criterion):
+def evaluate(val_loader, model, criterion):
     batch_time = AverageMeter()
     losses = AverageMeter()
-    top1 = AverageMeter()
-    top5 = AverageMeter()
 
     model.eval()
 
@@ -99,11 +98,7 @@ def validate(val_loader, model, criterion):
         output = torch.mean(output, dim=1)
         loss = criterion(output, target_var)
 
-        prec1, prec5 = accuracy(output.data, target, topk=(1, 5))
-
         losses.update(loss.data[0], input.size(0))
-        top1.update(prec1[0], input.size(0))
-        top5.update(prec5[0], input.size(0))
 
         batch_time.update(time.time() - end)
         end = time.time()
@@ -116,22 +111,9 @@ def validate(val_loader, model, criterion):
                    'Prec@5 {top5.val:.3f} ({top5.avg:.3f})'.format(
                        i, len(val_loader),
                        batch_time=batch_time,
-                       loss=losses,
-                       top1=top1,
-                       top5=top5)))
-
-    print(('Testing Results: Prec@1 {top1.avg:.3f} Prec@5 {top5.avg:.3f} Loss {loss.avg:.5f}'
-           .format(top1=top1, top5=top5, loss=losses)))
+                       loss=losses)))
 
     return top1.avg
-
-
-def save_checkpoint(state, is_best, filename):
-    filename = '_'.join((args.model_prefix, args.representation.lower(), filename))
-    torch.save(state, filename)
-    if is_best:
-        best_name = '_'.join((args.model_prefix, args.representation.lower(), 'model_best.pth.tar'))
-        shutil.copyfile(filename, best_name)
 
 
 class AverageMeter(object):
@@ -162,24 +144,18 @@ def adjust_learning_rate(optimizer, epoch, lr_steps, lr_decay):
     return lr
 
 
-def accuracy(output, target, topk=(1,)):
-    """Computes the precision@k for the specified values of k"""
-    maxk = max(topk)
-    batch_size = target.size(0)
-
-    _, pred = output.topk(maxk, 1, True, True)
-    pred = pred.t()
-    correct = pred.eq(target.view(1, -1).expand_as(pred))
-
-    res = []
-    for k in topk:
-        correct_k = correct[:k].view(-1).float().sum(0)
-        res.append(correct_k.mul_(100.0 / batch_size))
-    return res
-
-
 if __name__ == '__main__':
+    gpu = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
+    history = {
+        "train": [],
+        "val": []
+    }
+    minimum_loss = 100
+    log.info("Program Started")
+    log.info(f"GPU value: {gpu}")
     args = parser.parse_args()
+
+    probability_distribution = distributions.beta.Beta(0.5, 0.5)
 
     log.info('Training arguments:')
     for k, v in vars(args).items():
@@ -253,18 +229,14 @@ if __name__ == '__main__':
 
         train(train_loader, model, criterion, optimizer, epoch, cur_lr)
 
-        if epoch % args.eval_freq == 0 or epoch == args.epochs - 1:
-            prec1 = validate(val_loader, model, criterion)
+        testing_loss = evaluate(model, minimum_loss)
+        history["test"].append(testing_loss)
 
-            is_best = prec1 > best_prec1
-            best_prec1 = max(prec1, best_prec1)
-            if is_best or epoch % SAVE_FREQ == 0:
-                save_checkpoint(
-                    {
-                        'epoch': epoch + 1,
-                        'arch': args.arch,
-                        'state_dict': model.state_dict(),
-                        'best_prec1': best_prec1,
-                    },
-                    is_best,
-                    filename='checkpoint.pth.tar')
+        log.info(history)
+
+        # deep copy the model
+        if testing_loss < minimum_loss:
+            minimum_loss = testing_loss
+            log.info("Minimum loss is: {}".format(minimum_loss))
+            path_model = model_save_path + str(epoch) + ".pth"
+            torch.save(model.state_dict(), path_model)

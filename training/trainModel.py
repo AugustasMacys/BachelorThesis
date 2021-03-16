@@ -55,19 +55,10 @@ class DeepfakeClassifier(nn.Module):
         self.fc = Linear(encoder_params["tf_efficientnet_b4_ns"]["features"], 1)
 
     def forward(self, x):
-        print(x.shape)
         x = self.encoder.forward_features(x)
-        print(x.shape)
-        # x = self.avg_pool(x).flatten(1)
-        b = self.avg_pool(x)
-        print(b.shape)
         x = self.avg_pool(x).flatten(1)
-        print(x.shape)
-        exit(0)
         x = self.dropout(x)
-        print(x.shape)
         x = self.fc(x)
-        exit(0)
         return x
 
 
