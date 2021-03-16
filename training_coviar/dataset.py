@@ -4,6 +4,7 @@ and return compressed representations (I-frames, motion vectors,
 or residuals) for training or testing.
 """
 
+import logging
 import os
 import os.path
 import random
@@ -18,6 +19,9 @@ from training_coviar.coviarTransforms import color_aug
 
 
 GOP_SIZE = 12
+
+
+log = logging.getLogger(__name__)
 
 
 def clip_and_scale(img, size):
@@ -49,6 +53,7 @@ def get_gop_pos(frame_idx, representation):
             gop_index -= 1
             gop_pos = GOP_SIZE - 1
     else:
+        # I-frame
         gop_pos = 0
     return gop_index, gop_pos
 
@@ -76,18 +81,18 @@ class CoviarDataSet(data.Dataset):
 
         self._load_list(video_list)
 
-    def _load_list(self, video_list):
-        self._video_list = []
-        with open(video_list, 'r') as f:
-            for line in f:
-                video, _, label = line.strip().split()
-                video_path = os.path.join(self._data_root, video[:-4] + '.mp4')
-                self._video_list.append((
-                    video_path,
-                    int(label),
-                    get_num_frames(video_path)))
+    # def _load_list(self, video_list):
+    #     self._video_list = []
+    #     with open(video_list, 'r') as f:
+    #         for line in f:
+    #             video, _, label = line.strip().split()
+    #             video_path = os.path.join(self._data_root, video[:-4] + '.mp4')
+    #             self._video_list.append((
+    #                 video_path,
+    #                 int(label),
+    #                 get_num_frames(video_path)))
 
-        print('%d videos loaded.' % len(self._video_list))
+        # print('%d videos loaded.' % len(self._video_list))
 
     def _get_train_frame_index(self, num_frames, seg):
         # Compute the range of the segment.
@@ -111,6 +116,9 @@ class CoviarDataSet(data.Dataset):
         return get_gop_pos(v_frame_idx, self._representation)
 
     def __getitem__(self, index):
+        row = self.df.iloc[index]
+        real_encoded_video = row["real_encoded_video"]
+        fake_encoded_video = row["fake_encoded_video"]
 
         if self._representation == 'mv':
             representation_idx = 1
@@ -119,42 +127,66 @@ class CoviarDataSet(data.Dataset):
         else:
             representation_idx = 0
 
+        num_frames_real = get_num_frames(real_encoded_video)
+        num_frames_fake = get_num_frames(fake_encoded_video)
+        num_frames = min(num_frames_real, num_frames_fake)
+        # if self._is_train:
+        #     video_path, label, num_frames = random.choice(self._video_list)
+        # else:
+        #     video_path, label, num_frames = self._video_list[index]
 
-        if self._is_train:
-            video_path, label, num_frames = random.choice(self._video_list)
-        else:
-            video_path, label, num_frames = self._video_list[index]
-
-        frames = []
+        real_frames = []
+        fake_frames = []
         for seg in range(self._num_segments):
 
-            if self._is_train:
-                gop_index, gop_pos = self._get_train_frame_index(num_frames, seg)
-            else:
-                gop_index, gop_pos = self._get_test_frame_index(num_frames, seg)
+            # if self._is_train:
+            gop_index, gop_pos = self._get_train_frame_index(num_frames, seg)
 
-            img = load(video_path, gop_index, gop_pos,
-                       representation_idx, self._accumulate)
+            # So far focus on training
+            # else:
+            #     gop_index, gop_pos = self._get_test_frame_index(num_frames, seg)
 
-            if img is None:
-                print('Error: loading video %s failed.' % video_path)
-                img = np.zeros((256, 256, 2)) if self._representation == 'mv' else np.zeros((256, 256, 3))
+            img_real = load(real_encoded_video, gop_index, gop_pos,
+                            representation_idx, self._accumulate)
+
+            img_fake = load(fake_encoded_video, gop_index, gop_pos,
+                            representation_idx, self._accumulate)
+
+            if img_real is None:
+                log.error('Error: loading video %s failed.' % real_encoded_video)
+                img_real = np.zeros((256, 256, 2)) if self._representation == 'mv' else np.zeros((256, 256, 3))
+
+            if img_fake is None:
+                log.error('Error: loading video %s failed.' % fake_encoded_video)
+                img_fake = np.zeros((256, 256, 2)) if self._representation == 'mv' else np.zeros((256, 256, 3))
+
             else:
                 if self._representation == 'mv':
-                    img = clip_and_scale(img, 20)
-                    img += 128
-                    img = (np.minimum(np.maximum(img, 0), 255)).astype(np.uint8)
+                    img_real = clip_and_scale(img_real, 20)
+                    img_real += 128
+                    img_real = (np.minimum(np.maximum(img, 0), 255)).astype(np.uint8)
+
+                    img_fake = clip_and_scale(img_fake, 20)
+                    img_fake += 128
+                    img_fake = (np.minimum(np.maximum(img, 0), 255)).astype(np.uint8)
                 elif self._representation == 'residual':
-                    img += 128
-                    img = (np.minimum(np.maximum(img, 0), 255)).astype(np.uint8)
+                    img_real += 128
+                    img_real = (np.minimum(np.maximum(img, 0), 255)).astype(np.uint8)
+
+                    img_fake += 128
+                    img_fake = (np.minimum(np.maximum(img, 0), 255)).astype(np.uint8)
 
             if self._representation == 'iframe':
-                img = color_aug(img)
-
+                img_real = color_aug(img_real)
                 # BGR to RGB. (PyTorch uses RGB according to doc.)
-                img = img[..., ::-1]
+                img_real = img_real[..., ::-1]
 
-            frames.append(img)
+                img_fake = color_aug(img_fake)
+                # BGR to RGB. (PyTorch uses RGB according to doc.)
+                img_fake = img_fake[..., ::-1]
+
+            real_frames.append(img_real)
+            fake_frames.append(img_fake)
 
         frames = self._transform(frames)
 
@@ -172,4 +204,4 @@ class CoviarDataSet(data.Dataset):
         return input, label
 
     def __len__(self):
-        return len(self._video_list)
+        return len(self.videos_dataframe)
