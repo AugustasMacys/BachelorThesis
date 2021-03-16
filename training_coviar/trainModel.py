@@ -1,26 +1,25 @@
 """Run training."""
 import logging
 import os
-import shutil
 import time
 import numpy as np
 import pandas as pd
 
-import torch
 from torch import distributions
 import torch.backends.cudnn as cudnn
 from torch.nn import functional as F
 import torch.nn.parallel
+from torch.utils.data import DataLoader
 import torchvision
 
 from training_coviar.dataset import CoviarDataSet, CoviarTestDataSet
 from training_coviar.coviarModel import Model
-from train_options import parser
+from training_coviar.train_options import parser
 from training_coviar.coviarTransforms import GroupCenterCrop
 from training_coviar.coviarTransforms import GroupScale
 
 import config_logger
-from utilities import COVIAR_DATAFRAME_PATH, MODELS_DIECTORY
+from utilities import COVIAR_DATAFRAME_PATH, COVIAR_TEST_DATAFRAME_PATH, MODELS_DIECTORY
 
 log = logging.getLogger(__name__)
 
@@ -167,9 +166,9 @@ if __name__ == '__main__':
     log.info("Model is prepared")
 
     training_dataframe = pd.read_csv(COVIAR_DATAFRAME_PATH)
-    testing_dataframe = pd.read_csv(COVIAR_DATAFRAME_PATH)
+    testing_dataframe = pd.read_csv(COVIAR_TEST_DATAFRAME_PATH)
 
-    train_loader = torch.utils.data.DataLoader(
+    train_loader = DataLoader(
         CoviarDataSet(
             training_dataframe,
             num_segments=args.num_segments,
@@ -180,9 +179,7 @@ if __name__ == '__main__':
         batch_size=args.batch_size, shuffle=True,
         num_workers=args.workers, pin_memory=True)
 
-    log.info("Train Loader is prepared")
-
-    test_loader = torch.utils.data.DataLoader(
+    test_loader = DataLoader(
         CoviarTestDataSet(
             testing_dataframe,
             num_segments=args.num_segments,
@@ -195,6 +192,8 @@ if __name__ == '__main__':
         ),
         batch_size=args.batch_size, shuffle=False,
         num_workers=args.workers, pin_memory=True)
+
+    log.info("Loaders are prepared")
 
     cudnn.benchmark = True
 

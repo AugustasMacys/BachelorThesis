@@ -226,7 +226,7 @@ class CoviarTestDataSet(data.Dataset):
         else:
             representation_idx = 0
 
-        num_frames= get_num_frames(encoded_video)
+        num_frames = get_num_frames(encoded_video)
 
         frames = []
         for seg in range(self._num_segments):

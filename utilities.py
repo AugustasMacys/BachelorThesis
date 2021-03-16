@@ -53,6 +53,7 @@ TESTING_FOLDER_TO_IDENTIFIERS_PATH = os.path.join(ROOT_DIR, "testing_folder_to_i
 
 COVIAR_DATAFRAME_FOLDER = os.path.join(ROOT_DIR, "coviar_dataframes")
 COVIAR_DATAFRAME_PATH = os.path.join(COVIAR_DATAFRAME_FOLDER, "coviar_dataframe.csv")
+COVIAR_TEST_DATAFRAME_PATH = os.path.join(COVIAR_DATAFRAME_FOLDER, "coviar_test_dataframe.csv")
 
 EFFICIENT_B0_SIZE = 224
 EFFICIENT_B4_SIZE = 320
