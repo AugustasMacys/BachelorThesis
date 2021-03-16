@@ -68,7 +68,6 @@ class Model(nn.Module):
         else:
             scales = [1, .875, .75, .66]
 
-        # print('Augmentation scales:', scales)
         return torchvision.transforms.Compose(
             [GroupMultiScaleCrop(self._input_size, scales),
              GroupRandomHorizontalFlip(is_mv=(self._representation == 'mv'))])

@@ -51,6 +51,8 @@ REAL_FOLDER_TO_IDENTIFIERS_PATH = os.path.join(ROOT_DIR, "real_folder_to_identif
 FAKE_FOLDER_TO_IDENTIFIERS_PATH = os.path.join(ROOT_DIR, "fake_folder_to_identifiers.pkl")
 TESTING_FOLDER_TO_IDENTIFIERS_PATH = os.path.join(ROOT_DIR, "testing_folder_to_identifiers.pkl")
 
+COVIAR_DATAFRAME_FOLDER = os.path.join(ROOT_DIR, "coviar_dataframes")
+COVIAR_DATAFRAME_PATH = os.path.join(COVIAR_DATAFRAME_FOLDER, "coviar_dataframe.csv")
 
 EFFICIENT_B0_SIZE = 224
 EFFICIENT_B4_SIZE = 320

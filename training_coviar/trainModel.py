@@ -3,9 +3,11 @@ import logging
 import shutil
 import time
 import numpy as np
+import pandas as pd
 
 import torch
 import torch.backends.cudnn as cudnn
+from torch.nn import functional as F
 import torch.nn.parallel
 import torchvision
 
@@ -16,6 +18,7 @@ from training_coviar.coviarTransforms import GroupCenterCrop
 from training_coviar.coviarTransforms import GroupScale
 
 import config_logger
+from utilities import COVIAR_DATAFRAME_PATH
 
 log = logging.getLogger(__name__)
 
@@ -189,11 +192,11 @@ if __name__ == '__main__':
 
     log.info("Model is prepared")
 
+    training_dataframe = pd.read_csv(COVIAR_DATAFRAME_PATH)
+
     train_loader = torch.utils.data.DataLoader(
         CoviarDataSet(
-            args.data_root,
-            args.data_name,
-            video_list=args.train_list,
+            training_dataframe,
             num_segments=args.num_segments,
             representation=args.representation,
             transform=model.get_augmentation(),
@@ -202,6 +205,8 @@ if __name__ == '__main__':
         ),
         batch_size=args.batch_size, shuffle=True,
         num_workers=args.workers, pin_memory=True)
+
+    log.info("Train Loader is prepared")
 
     # val_loader = torch.utils.data.DataLoader(
     #     CoviarDataSet(
@@ -219,8 +224,6 @@ if __name__ == '__main__':
     #     ),
     #     batch_size=args.batch_size, shuffle=False,
     #     num_workers=args.workers, pin_memory=True)
-
-    model = torch.nn.DataParallel(model, device_ids=args.gpus).cuda()
     cudnn.benchmark = True
 
     params_dict = dict(model.named_parameters())
@@ -243,7 +246,7 @@ if __name__ == '__main__':
         params,
         weight_decay=args.weight_decay,
         eps=0.001)
-    criterion = torch.nn.CrossEntropyLoss().cuda()
+    criterion = F.binary_cross_entropy_with_logits
 
     for epoch in range(args.epochs):
         cur_lr = adjust_learning_rate(optimizer, epoch, args.lr_steps, args.lr_decay)

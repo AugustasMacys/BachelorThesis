@@ -79,21 +79,6 @@ class CoviarDataSet(data.Dataset):
         self._input_std = torch.from_numpy(
             np.array([0.229, 0.224, 0.225]).reshape((1, 3, 1, 1))).float()
 
-        self._load_list(video_list)
-
-    # def _load_list(self, video_list):
-    #     self._video_list = []
-    #     with open(video_list, 'r') as f:
-    #         for line in f:
-    #             video, _, label = line.strip().split()
-    #             video_path = os.path.join(self._data_root, video[:-4] + '.mp4')
-    #             self._video_list.append((
-    #                 video_path,
-    #                 int(label),
-    #                 get_num_frames(video_path)))
-
-        # print('%d videos loaded.' % len(self._video_list))
-
     def _get_train_frame_index(self, num_frames, seg):
         # Compute the range of the segment.
         seg_begin, seg_end = get_seg_range(num_frames, self._num_segments, seg,
@@ -116,7 +101,7 @@ class CoviarDataSet(data.Dataset):
         return get_gop_pos(v_frame_idx, self._representation)
 
     def __getitem__(self, index):
-        row = self.df.iloc[index]
+        row = self.videos_dataframe.iloc[index]
         real_encoded_video = row["real_encoded_video"]
         fake_encoded_video = row["fake_encoded_video"]
 
@@ -164,44 +149,61 @@ class CoviarDataSet(data.Dataset):
                 if self._representation == 'mv':
                     img_real = clip_and_scale(img_real, 20)
                     img_real += 128
-                    img_real = (np.minimum(np.maximum(img, 0), 255)).astype(np.uint8)
+                    img_real = (np.minimum(np.maximum(img_real, 0), 255)).astype(np.uint8)
 
                     img_fake = clip_and_scale(img_fake, 20)
                     img_fake += 128
-                    img_fake = (np.minimum(np.maximum(img, 0), 255)).astype(np.uint8)
+                    img_fake = (np.minimum(np.maximum(img_fake, 0), 255)).astype(np.uint8)
                 elif self._representation == 'residual':
                     img_real += 128
-                    img_real = (np.minimum(np.maximum(img, 0), 255)).astype(np.uint8)
+                    img_real = (np.minimum(np.maximum(img_real, 0), 255)).astype(np.uint8)
 
                     img_fake += 128
-                    img_fake = (np.minimum(np.maximum(img, 0), 255)).astype(np.uint8)
+                    img_fake = (np.minimum(np.maximum(img_fake, 0), 255)).astype(np.uint8)
 
             if self._representation == 'iframe':
-                img_real = color_aug(img_real)
                 # BGR to RGB. (PyTorch uses RGB according to doc.)
+                img_real = color_aug(img_real)
                 img_real = img_real[..., ::-1]
 
                 img_fake = color_aug(img_fake)
-                # BGR to RGB. (PyTorch uses RGB according to doc.)
                 img_fake = img_fake[..., ::-1]
 
             real_frames.append(img_real)
             fake_frames.append(img_fake)
 
-        frames = self._transform(frames)
+        # Comeback here
+        prev_state = random.getstate()
+        real_frames = self._transform(real_frames)
 
-        frames = np.array(frames)
-        frames = np.transpose(frames, (0, 3, 1, 2))
-        input = torch.from_numpy(frames).float() / 255.0
+        random.setstate(prev_state)
+        fake_frames = self._transform(fake_frames)
+
+        real_frames = np.array(real_frames)
+        real_frames = np.transpose(real_frames, (0, 3, 1, 2))
+
+        fake_frames = np.array(fake_frames)
+        fake_frames = np.transpose(fake_frames, (0, 3, 1, 2))
+
+        real_input = torch.from_numpy(real_frames).float() / 255.0
+        fake_input = torch.from_numpy(fake_frames).float() / 255.0
 
         if self._representation == 'iframe':
-            input = (input - self._input_mean) / self._input_std
+            real_input = (real_input - self._input_mean) / self._input_std
+            fake_input = (fake_input - self._input_mean) / self._input_std
         elif self._representation == 'residual':
-            input = (input - 0.5) / self._input_std
+            real_input = (real_input - 0.5) / self._input_std
+            fake_input = (fake_input - 0.5) / self._input_std
         elif self._representation == 'mv':
-            input = (input - 0.5)
+            real_input = (real_input - 0.5)
+            fake_input = (fake_input - 0.5)
 
-        return input, label
+        pairs = {
+            "fake": fake_input,
+            "real": real_input
+        }
+
+        return pairs
 
     def __len__(self):
         return len(self.videos_dataframe)
