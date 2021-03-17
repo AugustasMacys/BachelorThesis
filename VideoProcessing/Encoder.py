@@ -5,6 +5,7 @@ from tqdm import tqdm
 
 
 train_folder_path = r"D:/deepfakes/data/train"
+test_folder_path = r"D:/deepfakes/data/test"
 
 
 VIDEO_WIDTH = 192
@@ -22,15 +23,15 @@ def encode_mpeg4(video_path):
 
 
 if __name__ == '__main__':
-    train_videos = []
-    for subdir, dirs, files in os.walk(train_folder_path):
+    videos = []
+    for subdir, dirs, files in os.walk(test_folder_path):
         for file in files:
             if file.endswith(".mp4") and "mpeg" not in file:
-                train_videos.append(os.path.join(subdir, file))
+                videos.append(os.path.join(subdir, file))
 
-    with tqdm(total=len(train_videos)) as bar:
-        for video_path in train_videos:
+    with tqdm(total=len(videos)) as bar:
+        for video_path in videos:
             encode_mpeg4(video_path)
-            os.remove(video_path)
+            # os.remove(video_path)
 
             bar.update()
