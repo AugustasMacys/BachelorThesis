@@ -69,5 +69,5 @@ class Model(nn.Module):
             scales = [1, .875, .75, .66]
 
         return torchvision.transforms.Compose(
-            [GroupMultiScaleCrop(self._input_size, scales),
+            [GroupMultiScaleCrop(scales=scales),
              GroupRandomHorizontalFlip(is_mv=(self._representation == 'mv'))])

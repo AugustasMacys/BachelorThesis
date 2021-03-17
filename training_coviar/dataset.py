@@ -120,9 +120,6 @@ class CoviarDataSet(data.Dataset):
                 img_fake = np.zeros((256, 256, 2)) if self._representation == 'mv' else np.zeros((256, 256, 3))
 
             else:
-                log.info("Loading succeeded")
-                log.info(real_encoded_video)
-                log.info(fake_encoded_video)
                 if self._representation == 'mv':
                     img_real = clip_and_scale(img_real, 20)
                     img_real += 128
@@ -176,6 +173,8 @@ class CoviarDataSet(data.Dataset):
         elif self._representation == 'mv':
             real_input = (real_input - 0.5)
             fake_input = (fake_input - 0.5)
+
+        log.info("pair returned successfully")
 
         pairs = {
             "fake": fake_input,

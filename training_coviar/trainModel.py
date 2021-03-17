@@ -44,7 +44,7 @@ def train(model, criterion, optimizer, epoch, cur_lr):
         fake_input = pairs["fake"].to(gpu)
 
         target = probability_distribution.sample((len(fake_input),)).float().to(gpu)
-        fake_weight = target.view(-1, 1, 1, 1)
+        fake_weight = target.view(-1, 1, 1, 1, 1)
 
         input_tensor = (1.0 - fake_weight) * real_input + fake_weight * fake_input
 
@@ -52,11 +52,11 @@ def train(model, criterion, optimizer, epoch, cur_lr):
         optimizer.zero_grad()
 
         output = model(input_tensor)
-        print(output.shape)
         output = output.view((-1, args.num_segments) + output.size()[1:])
-        print(output.shape)
+        output = torch.mean(output, dim=1)
+        y_pred = output.squeeze()
 
-        loss = criterion(output, target)
+        loss = criterion(y_pred, target)
 
         # Might leave, but maybe not (come back) need to debug to make sure correct
         losses.update(loss.item(), input_tensor.shape[0])
@@ -67,7 +67,7 @@ def train(model, criterion, optimizer, epoch, cur_lr):
         batch_time.update(time.time() - end)
         end = time.time()
 
-        if i % PRINT_FREQ == 0:
+        if i % PRINT_FREQ == 0 and i != 0:
             log.info(('Epoch: [{0}][{1}/{2}], lr: {lr:.7f}\t'
                       'Time {batch_time.val:.3f} ({batch_time.avg:.3f})\t'
                       'Data {data_time.val:.3f} ({data_time.avg:.3f})\t'
@@ -89,28 +89,28 @@ def evaluate(model):
 
     end = time.time()
     for i, (inputs, labels) in enumerate(test_loader):
-        inputs = inputs.to(gpu)
-        labels = labels.to(gpu)
+        with torch.no_grad():
+            inputs = inputs.to(gpu)
+            labels = labels.to(gpu)
 
-        outputs = model(inputs)
-        print(outputs.shape)
-        # output = output.view((-1, args.num_segments) + output.size()[1:])
-        # output = torch.mean(output, dim=1)
-        y_pred = outputs.squeeze()
-        labels = labels.type_as(y_pred)
-        loss = criterion(y_pred, labels)
+            output = model(inputs)
+            output = output.view((-1, args.num_segments) + output.size()[1:])
+            output = torch.mean(output, dim=1)
+            y_pred = output.squeeze()
+            labels = labels.type_as(y_pred)
+            loss = criterion(y_pred, labels)
 
-        losses.update(loss.item(), inputs.size(0))
+            losses.update(loss.item(), inputs.size(0))
 
-        batch_time.update(time.time() - end)
-        end = time.time()
+            batch_time.update(time.time() - end)
+            end = time.time()
 
-        if i % PRINT_FREQ == 0:
-            log.info(('Test: [{0}/{1}]\t'
-                      'Time {batch_time.val:.3f} ({batch_time.avg:.3f})\t'
-                      'Loss {loss.val:.4f} ({loss.avg:.4f})\t'.format(i, len(test_loader),
-                                                                      batch_time=batch_time,
-                                                                      loss=losses)))
+            if i % PRINT_FREQ == 0:
+                log.info(('Test: [{0}/{1}]\t'
+                          'Time {batch_time.val:.3f} ({batch_time.avg:.3f})\t'
+                          'Loss {loss.val:.4f} ({loss.avg:.4f})\t'.format(i, len(test_loader),
+                                                                          batch_time=batch_time,
+                                                                          loss=losses)))
 
     return losses.avg
 
@@ -213,6 +213,7 @@ if __name__ == '__main__':
 
         params += [{'params': value, 'lr': args.lr, 'lr_mult': lr_mult, 'decay_mult': decay_mult}]
 
+    model.to(gpu)
     log.info("Model prepared")
     optimizer = torch.optim.Adam(
         params,

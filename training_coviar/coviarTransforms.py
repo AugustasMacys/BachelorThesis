@@ -112,12 +112,12 @@ def resize_mv(img, shape, interpolation):
 
 
 class GroupMultiScaleCrop(object):
-    def __init__(self, input_size, scales=None, max_distort=1, fix_crop=False, more_fix_crop=True):
+    def __init__(self, input_size=[192, 224], scales=None, max_distort=1, fix_crop=False, more_fix_crop=True):
         self.scales = scales if scales is not None else [1, 875, .75, .66]
         self.max_distort = max_distort
         self.fix_crop = fix_crop
         self.more_fix_crop = more_fix_crop
-        self.input_size = input_size if not isinstance(input_size, int) else [input_size, input_size]
+        self.input_size = input_size
 
     def __call__(self, img_group):
 

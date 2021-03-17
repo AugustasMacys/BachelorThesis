@@ -18,7 +18,7 @@ parser.add_argument('--no-accumulation', action='store_true',
 # Training.
 parser.add_argument('--epochs', default=40, type=int,
                     help='number of training epochs.')
-parser.add_argument('--batch-size', default=16, type=int,
+parser.add_argument('--batch-size', default=8, type=int,
                     help='batch size.')
 parser.add_argument('--lr', default=0.001, type=float,
                     help='base learning rate.')
