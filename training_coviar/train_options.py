@@ -12,7 +12,7 @@ parser.add_argument('--arch', type=str, default="resnet152",
 parser.add_argument('--num_segments', type=int, default=3,
                     help='number of TSN segments.')
 # Comeback
-parser.add_argument('--accumulation', action='store_true',
+parser.add_argument('--no-accumulation', action='store_true',
                     help='disable accumulation of motion vectors and residuals.')
 
 # Training.
@@ -28,3 +28,6 @@ parser.add_argument('--lr-decay', default=0.1, type=float,
                     help='lr decay factor.')
 parser.add_argument('--weight-decay', '--wd', default=1e-4, type=float,
                     help='weight decay.')
+
+parser.add_argument('--workers', default=4, type=int,
+                    help='number of data loader workers.')

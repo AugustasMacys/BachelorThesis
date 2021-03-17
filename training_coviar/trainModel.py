@@ -165,8 +165,6 @@ if __name__ == '__main__':
     model = Model(num_class, args.num_segments, args.representation,
                   base_model=args.arch)
 
-    log.info("Model is prepared")
-
     training_dataframe = pd.read_csv(COVIAR_DATAFRAME_PATH)
     testing_dataframe = pd.read_csv(COVIAR_TEST_DATAFRAME_PATH)
 
@@ -176,7 +174,7 @@ if __name__ == '__main__':
             num_segments=args.num_segments,
             representation=args.representation,
             transform=model.get_augmentation(),
-            accumulate=(not args.accumulation),
+            accumulate=(not args.no_accumulation),
         ),
         batch_size=args.batch_size, shuffle=True,
         num_workers=args.workers, pin_memory=True)
@@ -190,7 +188,7 @@ if __name__ == '__main__':
                 GroupScale(int(model.scale_size)),
                 GroupCenterCrop(model.crop_size),
             ]),
-            accumulate=(not args.accumulation),
+            accumulate=(not args.no_accumulation),
         ),
         batch_size=args.batch_size, shuffle=False,
         num_workers=args.workers, pin_memory=True)
