@@ -1,8 +1,11 @@
 """Functions for data augmentation and related preprocessing."""
 
+import logging
 import random
 import numpy as np
 import cv2
+
+log = logging.getLogger(__name__)
 
 
 def color_aug(img, random_h=36, random_l=50, random_s=50):
@@ -107,8 +110,12 @@ class GroupOverSample(object):
 
 
 def resize_mv(img, shape, interpolation):
-    return np.stack([cv2.resize(img[..., i], shape, interpolation)
-                     for i in range(2)], axis=2)
+
+    if img.dtype == np.int32:
+        log.info("Changing type")
+        img = img.astype('float32')
+
+    return np.stack([cv2.resize(img[..., i], shape, interpolation) for i in range(2)], axis=2)
 
 
 class GroupMultiScaleCrop(object):
@@ -128,6 +135,7 @@ class GroupMultiScaleCrop(object):
         crop_img_group = [img[offset_w:offset_w + crop_w, offset_h:offset_h + crop_h] for img in img_group]
 
         if crop_img_group[0].shape[2] == 3:
+            crop_img_group = [img.astype('uint8') for img in crop_img_group]
             ret_img_group = [cv2.resize(img, (self.input_size[0], self.input_size[1]),
                                         cv2.INTER_LINEAR)
                              for img in crop_img_group]

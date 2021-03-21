@@ -23,9 +23,9 @@ from utilities import COVIAR_DATAFRAME_PATH, COVIAR_TEST_DATAFRAME_PATH, MODELS_
 
 log = logging.getLogger(__name__)
 
-PRINT_FREQ = 250
+PRINT_FREQ = 200
 
-model_save_path = os.path.join(MODELS_DIECTORY, "coviar_model")
+model_save_path = os.path.join(MODELS_DIECTORY, "coviar_iframe_model")
 
 
 def train(model, criterion, optimizer, epoch, cur_lr):
@@ -52,6 +52,8 @@ def train(model, criterion, optimizer, epoch, cur_lr):
         optimizer.zero_grad()
 
         output = model(input_tensor)
+        n = input_tensor.shape[0]
+
         output = output.view((-1, args.num_segments) + output.size()[1:])
         output = torch.mean(output, dim=1)
         y_pred = output.squeeze()
@@ -59,7 +61,7 @@ def train(model, criterion, optimizer, epoch, cur_lr):
         loss = criterion(y_pred, target)
 
         # Might leave, but maybe not (come back) need to debug to make sure correct
-        losses.update(loss.item(), input_tensor.shape[0])
+        losses.update(loss.item(), n)
 
         loss.backward()
         optimizer.step()
@@ -77,6 +79,8 @@ def train(model, criterion, optimizer, epoch, cur_lr):
                             data_time=data_time,
                             loss=losses,
                             lr=cur_lr)))
+        if i >= 6000:
+            break
 
     return losses.avg
 
@@ -88,10 +92,10 @@ def evaluate(model):
     model.eval()
 
     end = time.time()
-    for i, (inputs, labels) in enumerate(test_loader):
+    for i, (pair) in enumerate(test_loader):
         with torch.no_grad():
-            inputs = inputs.to(gpu)
-            labels = labels.to(gpu)
+            inputs = pair["input"].to(gpu)
+            labels = pair["label"].to(gpu)
 
             output = model(inputs)
             output = output.view((-1, args.num_segments) + output.size()[1:])
@@ -214,6 +218,8 @@ if __name__ == '__main__':
         params += [{'params': value, 'lr': args.lr, 'lr_mult': lr_mult, 'decay_mult': decay_mult}]
 
     model.to(gpu)
+    path_trained_model = os.path.join(MODELS_DIECTORY, "coviar_iframe_model3.pth")
+    model.load_state_dict(torch.load(path_trained_model), strict=True)
     log.info("Model prepared")
     optimizer = torch.optim.Adam(
         params,
@@ -223,7 +229,6 @@ if __name__ == '__main__':
 
     for epoch in range(args.epochs):
         cur_lr = adjust_learning_rate(optimizer, epoch, args.lr_steps, args.lr_decay)
-
         training_loss = train(model, criterion, optimizer, epoch, cur_lr)
         history["train"].append(training_loss)
 

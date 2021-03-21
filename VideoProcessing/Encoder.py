@@ -32,6 +32,6 @@ if __name__ == '__main__':
     with tqdm(total=len(videos)) as bar:
         for video_path in videos:
             encode_mpeg4(video_path)
-            # os.remove(video_path)
+            os.remove(video_path)
 
             bar.update()

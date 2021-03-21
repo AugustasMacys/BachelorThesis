@@ -81,8 +81,12 @@ class CoviarDataSet(data.Dataset):
                                            representation=self._representation)
 
         # Sample one frame from the segment.
-        v_frame_idx = random.randint(seg_begin, seg_end - 1)
-        return get_gop_pos(v_frame_idx, self._representation)
+        try:
+            v_frame_idx = random.randint(seg_begin, seg_end - 1)
+            gop_index, gop_pos = get_gop_pos(v_frame_idx, self._representation)
+            return gop_index, gop_pos, True
+        except ValueError as e:
+            return 0, 0, False
 
     def __getitem__(self, index):
         row = self.videos_dataframe.iloc[index]
@@ -103,21 +107,32 @@ class CoviarDataSet(data.Dataset):
         real_frames = []
         fake_frames = []
         for seg in range(self._num_segments):
-            gop_index, gop_pos = self._get_train_frame_index(num_frames, seg)
+            gop_index, gop_pos, is_success = self._get_train_frame_index(num_frames, seg)
 
-            img_real = load(real_encoded_video, gop_index, gop_pos,
-                            representation_idx, self._accumulate)
-
-            img_fake = load(fake_encoded_video, gop_index, gop_pos,
-                            representation_idx, self._accumulate)
+            if is_success:
+                try:
+                    img_real = load(real_encoded_video, gop_index, gop_pos,
+                                    representation_idx, self._accumulate)
+                    img_fake = load(fake_encoded_video, gop_index, gop_pos,
+                                    representation_idx, self._accumulate)
+                except SystemError:
+                    log.error("Cannot use coviar load function")
+                    img_real = None
+                    img_fake = None
+            else:
+                log.error("Cannot Use _get_train_frame_index()")
+                img_real = None
+                img_fake = None
 
             if img_real is None:
                 log.error('Error: loading video %s failed.' % real_encoded_video)
-                img_real = np.zeros((256, 256, 2)) if self._representation == 'mv' else np.zeros((256, 256, 3))
+                img_real = np.zeros((224, 192, 2)) if self._representation == 'mv' else np.zeros((224, 192, 3))
+                img_real = img_real.astype('uint8')
 
             if img_fake is None:
                 log.error('Error: loading video %s failed.' % fake_encoded_video)
-                img_fake = np.zeros((256, 256, 2)) if self._representation == 'mv' else np.zeros((256, 256, 3))
+                img_fake = np.zeros((224, 192, 2)) if self._representation == 'mv' else np.zeros((224, 192, 3))
+                img_fake = img_fake.astype('uint8')
 
             else:
                 if self._representation == 'mv':
@@ -174,7 +189,7 @@ class CoviarDataSet(data.Dataset):
             real_input = (real_input - 0.5)
             fake_input = (fake_input - 0.5)
 
-        log.info("pair returned successfully")
+        # log.info("pair returned successfully")
 
         pairs = {
             "fake": fake_input,
@@ -255,7 +270,6 @@ class CoviarTestDataSet(data.Dataset):
 
             if self._representation == 'iframe':
                 # BGR to RGB. (PyTorch uses RGB according to doc.)
-                img = color_aug(img)
                 img = img[..., ::-1]
 
             frames.append(img)
