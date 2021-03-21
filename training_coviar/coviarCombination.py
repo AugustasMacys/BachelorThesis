@@ -143,6 +143,21 @@ class CoviarCombinedTestDataSet(data.Dataset):
         return len(self.videos_dataframe)
 
 
+def apply_shift(outputs):
+    delta = outputs - 0.5
+    sign_array = np.sign(delta)
+    pos_array = delta > 0
+    neg_array = delta < 0
+    outputs[pos_array] = np.clip(0.5 + sign_array[pos_array] * np.power(abs(delta[pos_array]),
+                                                                               0.65), 0.01, 0.99)
+    outputs[neg_array] = np.clip(0.5 + sign_array[neg_array] * np.power(abs(delta[neg_array]),
+                                                                               0.65), 0.01, 0.99)
+
+    weights = np.power(abs(delta), 1.0) + 1e-4
+    final_score = float((outputs * weights).sum() / weights.sum())
+    return final_score
+
+
 if __name__ == '__main__':
     gpu = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 
@@ -184,7 +199,6 @@ if __name__ == '__main__':
     model_residual.eval()
     model_motion_vector.eval()
 
-
     log.info("Models are loaded")
 
     testing_dataframe = pd.read_csv(args.dataframe)
@@ -200,48 +214,40 @@ if __name__ == '__main__':
             ]),
             accumulate=(not args.no_accumulation),
         ),
-        batch_size=4, shuffle=False,
+        batch_size=1, shuffle=False,
         num_workers=args.workers, pin_memory=True)
 
-    data_gen = enumerate(data_loader)
-
     total_num = len(data_loader.dataset)
-    output = []
+    outputs = []
+    labels = []
 
+    for combination in data_loader:
+        label = combination["label"].to(gpu)
+        vector = combination["vector"].to(gpu)
+        frame = combination["frame"].to(gpu)
+        residual = combination["residual"].to(gpu)
 
-    def evaluate_video(data):
-        input_var = torch.autograd.Variable(data, volatile=True)
-        scores = net(input_var)
-        scores = scores.view((-1, args.test_segments * args.test_crops) + scores.size()[1:])
-        scores = torch.mean(scores, dim=1)
-        return scores.data.cpu().numpy().copy()
+        output_vector = model_motion_vector(vector)
+        output_vector = output_vector.view((-1, args.num_segments) + output_vector.size()[1:])
+        output_vector = apply_shift(output_vector)
+        # output_vector = torch.mean(output_vector, dim=1)
 
+        output_residual = model_residual(residual)
+        output_residual = output_residual.view((-1, args.num_segments) + output_residual.size()[1:])
+        output_residual = apply_shift(output_residual)
+        # output_residual = torch.mean(output_residual, dim=1)
 
-    for i, (data, label) in data_gen:
-        video_scores = forward_video(data)
-        output.append((video_scores, label[0]))
-        cnt_time = time.time() - proc_start_time
+        output_frame = model_residual(residual)
+        output_frame = output_residual.view((-1, args.num_segments) + output_frame.size()[1:])
+        output_frame = apply_shift(output_frame)
+        # output_frame = torch.mean(output_frame, dim=1)
 
-    video_pred = [np.argmax(x[0]) for x in output]
-    video_labels = [x[1] for x in output]
+        mean_outputs = (output_vector + output_residual + output_frame) / 3
 
-    print('Accuracy {:.02f}% ({})'.format(
-        float(np.sum(np.array(video_pred) == np.array(video_labels))) / len(video_pred) * 100.0,
-        len(video_pred)))
+        outputs.append(mean_outputs)
+        labels.append(label.item())
 
-    if args.save_scores is not None:
+    df = pd.DataFrame(list(zip(outputs, labels)),
+                      columns=['Prediction', 'Truth'])
 
-        name_list = [x.strip().split()[0] for x in open(args.test_list)]
-        order_dict = {e: i for i, e in enumerate(sorted(name_list))}
-
-        reorder_output = [None] * len(output)
-        reorder_label = [None] * len(output)
-        reorder_name = [None] * len(output)
-
-        for i in range(len(output)):
-            idx = order_dict[name_list[i]]
-            reorder_output[idx] = output[i]
-            reorder_label[idx] = video_labels[i]
-            reorder_name[idx] = name_list[i]
-
-        np.savez(args.save_scores, scores=reorder_output, labels=reorder_label, names=reorder_name)
+    df.to_csv("prediction_dataframe.csv", index=False)
