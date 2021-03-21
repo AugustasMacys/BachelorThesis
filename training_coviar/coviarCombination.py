@@ -1,20 +1,150 @@
 """Run testing given a trained model."""
 import argparse
+import logging
 import time
 
+import pandas as pd
 import numpy as np
 import torch.nn.parallel
 import torch.optim
+import torch.utils.data as data
 import torchvision
 
-from training_coviar.dataset import CoviarDataSet
+
+from coviar import get_num_frames
+from coviar import load
+
+from training_coviar.dataset import clip_and_scale
 from training_coviar.coviarModel import Model
 from training_coviar.coviarTransforms import GroupCenterCrop
-from training_coviar.coviarTransforms import GroupOverSample
 from training_coviar.coviarTransforms import GroupScale
+
+GOP_SIZE = 12
+
+
+log = logging.getLogger(__name__)
+
+
+class CoviarCombinedTestDataSet(data.Dataset):
+    def __init__(self,
+                 dataframe,
+                 transform,
+                 num_segments,
+                 accumulate):
+
+        self.videos_dataframe = dataframe
+        self._num_segments = num_segments
+        self._transform = transform
+        self._accumulate = accumulate
+
+        self._input_mean = torch.from_numpy(
+            np.array([0.485, 0.456, 0.406]).reshape((1, 3, 1, 1))).float()
+        self._input_std = torch.from_numpy(
+            np.array([0.229, 0.224, 0.225]).reshape((1, 3, 1, 1))).float()
+
+    def __getitem__(self, index):
+        row = self.videos_dataframe.iloc[index]
+        encoded_video = row["encoded_video"]
+        label = row["label"]
+
+        mv_representation_idx = 1
+        residual_representation_idx = 2
+        iframe_representation_idx = 0
+
+        num_frames = get_num_frames(encoded_video)
+
+        frames = []
+        vectors = []
+        residuals = []
+        for seg in range(self._num_segments):
+
+            num_frames_mv_residual = num_frames - 1
+
+            seg_size_iframe = float(num_frames - 1) / self._num_segments
+            seg_size_mv_residual = float(num_frames_mv_residual - 1) / self._num_segments
+            v_frame_idx_iframe = int(np.round(seg_size_iframe * (seg + 0.5)))
+            v_frame_idx_mv_residual = int(np.round(seg_size_mv_residual * (seg + 0.5))) + 1
+
+            gop_index_mv_residual = (v_frame_idx_mv_residual // GOP_SIZE)
+            gop_index_iframe = v_frame_idx_iframe // GOP_SIZE
+            gop_pos_mv_residual = (gop_index_mv_residual % GOP_SIZE)
+            gop_pos_iframe = 0
+
+            if gop_pos_mv_residual == 0:
+                gop_index_mv_residual -= 1
+                gop_pos_mv_residual = GOP_SIZE - 1
+
+            motion_vector = load(encoded_video, gop_index_mv_residual, gop_pos_mv_residual,
+                                 mv_representation_idx, self._accumulate)
+
+            residual = load(encoded_video, gop_index_mv_residual, gop_pos_mv_residual,
+                            residual_representation_idx, self._accumulate)
+
+            iframe = load(encoded_video, gop_index_iframe, gop_pos_iframe,
+                          iframe_representation_idx, self._accumulate)
+
+            if motion_vector is None:
+                log.error('Error: loading motion vector %s failed.' % encoded_video)
+                motion_vector = np.zeros((256, 256, 2)).astype('uint8')
+
+            if residual is None:
+                log.error('Error: loading residual %s failed.' % encoded_video)
+                residual = np.zeros((256, 256, 3)).astype('uint8')
+
+            if iframe is None:
+                log.error('Error: loading iframe %s failed.' % encoded_video)
+                iframe = np.zeros((256, 256, 3)).astype('uint8')
+
+            else:
+                motion_vector = clip_and_scale(motion_vector, 20)
+                motion_vector += 128
+                motion_vector = (np.minimum(np.maximum(motion_vector, 0), 255)).astype(np.uint8)
+
+                residual += 128
+                residual = (np.minimum(np.maximum(residual, 0), 255)).astype(np.uint8)
+
+                iframe = iframe[..., ::-1]
+
+            frames.append(iframe)
+            residuals.append(residual)
+            vectors.append(motion_vector)
+
+        frames = self._transform(frames)
+        residuals = self._transform(frames)
+        vectors = self._transform(frames)
+
+        frames = np.array(frames)
+        frames = np.transpose(frames, (0, 3, 1, 2))
+
+        residuals = np.array(residuals)
+        residuals = np.transpose(residuals, (0, 3, 1, 2))
+
+        vectors = np.array(vectors)
+        vectors = np.transpose(vectors, (0, 3, 1, 2))
+
+        input_frames = torch.from_numpy(frames).float() / 255.0
+        input_residuals = torch.from_numpy(residuals).float() / 255.0
+        input_vectors = torch.from_numpy(vectors).float() / 255.0
+
+        input_frames = (input_frames - self._input_mean) / self._input_std
+        input_residuals = (input_residuals - 0.5) / self._input_std
+        input_vectors = (input_vectors - 0.5)
+
+        combination = {
+            "frame": input_frames,
+            "residual": input_residuals,
+            "vector": input_vectors,
+            "label": label
+        }
+
+        return combination
+
+    def __len__(self):
+        return len(self.videos_dataframe)
 
 
 if __name__ == '__main__':
+    gpu = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 
     parser = argparse.ArgumentParser(
         description="Standard video-level testing")
@@ -26,52 +156,52 @@ if __name__ == '__main__':
     parser.add_argument('--modelResidual', type=str)
     parser.add_argument('-j', '--workers', default=1, type=int, metavar='N',
                         help='number of workers for data loader.')
-    parser.add_argument('--gpus', nargs='+', type=int, default=None)
+
+    parser.add_argument('--representation', type=str, choices=['iframe', 'mv', 'residual'],
+                        help='data representation.')
+    parser.add_argument('--arch', type=str, default="resnet34",
+                        help='base architecture.')
+    parser.add_argument('--num_segments', type=int, default=3,
+                        help='number of TSN segments.')
 
     args = parser.parse_args()
 
-    net = Model(num_class, args.test_segments, args.representation,
-                base_model=args.arch)
+    num_classes = 1
 
-    checkpoint = torch.load(args.weights)
-    print("model epoch {} best prec@1: {}".format(checkpoint['epoch'], checkpoint['best_prec1']))
+    model_motion_vector = Model(num_classes, args.num_segments, 'mv', args.arch)
+    model_motion_vector.to(gpu)
+    model_motion_vector = model_motion_vector.load_state_dict(torch.load(args.modelVector), strict=True)
 
-    base_dict = {'.'.join(k.split('.')[1:]): v for k, v in list(checkpoint['state_dict'].items())}
-    net.load_state_dict(base_dict)
+    model_residual = Model(num_classes, args.num_segments, 'residual', args.arch)
+    model_residual.to(gpu)
+    model_residual = model_residual.load_state_dict(torch.load(args.modelResidual), strict=True)
 
-    if args.test_crops == 1:
-        cropping = torchvision.transforms.Compose([
-            GroupScale(net.scale_size),
-            GroupCenterCrop(net.crop_size),
-        ])
-    elif args.test_crops == 10:
-        cropping = torchvision.transforms.Compose([
-            GroupOverSample(net.crop_size, net.scale_size, is_mv=(args.representation == 'mv'))
-        ])
-    else:
-        raise ValueError("Only 1 and 10 crops are supported, but got {}.".format(args.test_crops))
+    model_frame = Model(num_classes, args.num_segments, 'iframe')
+    model_frame.to(gpu)
+    model_frame = model_frame.load_state_dict(torch.load(args.modelIframe), strict=True)
 
-    data_loader = torch.utils.data.DataLoader(
-        CoviarDataSet(
-            args.data_root,
-            args.data_name,
-            video_list=args.test_list,
-            num_segments=args.test_segments,
-            representation=args.representation,
-            transform=cropping,
-            is_train=False,
+    model_frame.eval()
+    model_residual.eval()
+    model_motion_vector.eval()
+
+
+    log.info("Models are loaded")
+
+    testing_dataframe = pd.read_csv(args.dataframe)
+
+    data_loader = data.DataLoader(
+        CoviarCombinedTestDataSet(
+            testing_dataframe,
+            num_segments=args.num_segments,
+            transform=torchvision.transforms.Compose([
+                # all the same
+                GroupScale(int(model_frame.scale_size)),
+                GroupCenterCrop(model_frame.crop_size),
+            ]),
             accumulate=(not args.no_accumulation),
         ),
-        batch_size=1, shuffle=False,
-        num_workers=args.workers * 2, pin_memory=True)
-
-    if args.gpus is not None:
-        devices = [args.gpus[i] for i in range(args.workers)]
-    else:
-        devices = list(range(args.workers))
-
-    net = torch.nn.DataParallel(net.cuda(devices[0]), device_ids=devices)
-    net.eval()
+        batch_size=4, shuffle=False,
+        num_workers=args.workers, pin_memory=True)
 
     data_gen = enumerate(data_loader)
 
@@ -79,7 +209,7 @@ if __name__ == '__main__':
     output = []
 
 
-    def forward_video(data):
+    def evaluate_video(data):
         input_var = torch.autograd.Variable(data, volatile=True)
         scores = net(input_var)
         scores = scores.view((-1, args.test_segments * args.test_crops) + scores.size()[1:])
@@ -87,16 +217,10 @@ if __name__ == '__main__':
         return scores.data.cpu().numpy().copy()
 
 
-    proc_start_time = time.time()
-
     for i, (data, label) in data_gen:
         video_scores = forward_video(data)
         output.append((video_scores, label[0]))
         cnt_time = time.time() - proc_start_time
-        if (i + 1) % 100 == 0:
-            print('video {} done, total {}/{}, average {} sec/video'.format(i, i + 1,
-                                                                            total_num,
-                                                                            float(cnt_time) / (i + 1)))
 
     video_pred = [np.argmax(x[0]) for x in output]
     video_labels = [x[1] for x in output]
