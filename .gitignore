@@ -175,4 +175,4 @@ google cloud scripts_TPU/
 special_models/
 dataframes/
 notebooks/ResultsAnalyser.ipynb
-src/inference/*.csv
+src/inference/predictions
