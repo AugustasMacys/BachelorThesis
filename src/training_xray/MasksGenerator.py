@@ -1,18 +1,18 @@
-from PIL import Image
-import numpy as np
 import cv2
-from scipy.spatial import ConvexHull
-import face_alignment
-import pandas as pd
-from tqdm import tqdm
 import os
+import numpy as np
+import pandas as pd
 import pickle
+from PIL import Image
+from tqdm import tqdm
 
+
+import face_alignment
+from scipy.spatial import ConvexHull
 import torch
-import albumentations.augmentations.functional as albumentations_F
 
 
-from utilities import MASKS_FOLDER, PAIR_REAL_DATAFRAME
+from src.Utilities import MASKS_FOLDER, PAIR_REAL_DATAFRAME
 
 
 def isotropically_resize_image(img, size, interpolation_down=cv2.INTER_AREA, interpolation_up=cv2.INTER_CUBIC):
@@ -51,7 +51,6 @@ def create_mask(path):
     img = 4.0 * np.multiply(img, (1.0 - img))
     img = (img * 255).astype(np.uint8)
     _, img = cv2.threshold(img, 1, 255, cv2.THRESH_BINARY)
-    # print(img.shape)
     folder = path.split("\\")[3]
     identifier = path.split("\\")[4]
     directory_to_create = os.path.join(MASKS_FOLDER, folder)
@@ -70,7 +69,7 @@ if __name__ == '__main__':
 
 
     # According to research paper, we create masks from real images
-    image_paths = pd.unique(pd.read_csv(PAIR_REAL_DATAFRAME).image_path[1979:])
+    image_paths = pd.unique(pd.read_csv(PAIR_REAL_DATAFRAME).image_path)
 
     files_without_mask = []
     with tqdm(total=len(image_paths)) as bar:

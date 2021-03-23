@@ -1,17 +1,16 @@
+import logging
+import os
+import time
+
 import torch
 from torch.optim import lr_scheduler
-import logging
-import time
-import os
 
-from training.trainModel import create_data_loaders, freeze_until
 
-from utilities import MODELS_DIECTORY, HRNET_CONFIG_FILE
-
-from xray.cnnB import get_seg_model
-from xray.cnnC import get_nnc
-
-from x_ray_config import config, update_config
+from src.training.TrainModelFaces2D import create_data_loaders, freeze_until
+from src.Utilities import MODELS_DIECTORY, HRNET_CONFIG_FILE
+from src.training_xray.CNNB import get_seg_model
+from src.training_xray.CNNC import get_nnc
+from src.xray_config import config, update_config
 
 
 log = logging.getLogger(__name__)

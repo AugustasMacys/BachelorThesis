@@ -8,8 +8,8 @@ import albumentations.augmentations.functional as F
 from albumentations.pytorch.functional import img_to_tensor
 from torch.utils.data import Dataset
 
-from training.augmentations import gaussian_noise_transform, put_to_center
-from training.trainUtilities import MEAN, STD
+from src.training.Augmentations import gaussian_noise_transform, put_to_center
+from src.training.TrainUtilities import MEAN, STD
 
 log = logging.getLogger(__name__)
 

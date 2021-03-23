@@ -12,9 +12,9 @@ import torch
 from skimage.filters import threshold_yen
 from skimage.exposure import rescale_intensity
 
-from training.augmentations import isotropically_resize_image, put_to_center, transformation
-from training.trainModel import MyResNeXt, DeepfakeClassifier
-from utilities import MODELS_DIECTORY, VALIDATION_DIRECTORY, PRIVATE_TESTING_DIRECTORY, PRIVATE_TESTING_LABELS_PATH
+from src.training.Augmentations import isotropically_resize_image, put_to_center, transformation
+from src.training.TrainModelFaces2D import MyResNeXt, DeepfakeClassifier
+from src.Utilities import MODELS_DIECTORY, VALIDATION_DIRECTORY, PRIVATE_TESTING_DIRECTORY, PRIVATE_TESTING_LABELS_PATH
 
 
 model_save_path = os.path.join(MODELS_DIECTORY, "lowest_loss_model3.pth")

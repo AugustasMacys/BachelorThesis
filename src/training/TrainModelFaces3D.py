@@ -1,5 +1,5 @@
 import logging
-import config_logger
+from src import ConfigLogger
 from functools import partial
 import ntpath
 import os
@@ -24,12 +24,12 @@ import torch.nn as nn
 from torch.utils.data import DataLoader, Dataset
 
 
-from utilities import SEQUENCE_DATAFRAME_PATH, REAL_FOLDER_TO_IDENTIFIERS_PATH, FAKE_FOLDER_TO_IDENTIFIERS_PATH, \
+from src.Utilities import SEQUENCE_DATAFRAME_PATH, REAL_FOLDER_TO_IDENTIFIERS_PATH, FAKE_FOLDER_TO_IDENTIFIERS_PATH, \
     SEQUENCE_DATAFRAME_TESTING_PATH, TESTING_FOLDER_TO_IDENTIFIERS_PATH, MODELS_DIECTORY
-from training.augmentations import augmentation_pipeline_3D, gaussian_noise_transform_3D, \
+from src.training.Augmentations import augmentation_pipeline_3D, gaussian_noise_transform_3D, \
     validation_augmentation_pipeline, put_to_center
-from training.trainModel import collate_fn
-from training.trainUtilities import MEAN, STD
+from src.training.TrainModelFaces2D import collate_fn
+from src.training.TrainUtilities import MEAN, STD
 
 log = logging.getLogger(__name__)
 

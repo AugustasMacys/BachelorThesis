@@ -1,10 +1,11 @@
+import logging
+import os
 import multiprocessing
 from pathlib import Path
 from time import time
-from zipfile import ZipFile
-import logging
 from typing import Union
-import os
+from zipfile import ZipFile
+
 
 DATA = Path(r"D:\deepfakes\data\train")
 logging.basicConfig(filename="extract2.log", level=logging.INFO)

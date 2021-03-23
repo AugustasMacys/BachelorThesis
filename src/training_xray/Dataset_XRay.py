@@ -1,18 +1,16 @@
 from PIL import Image
 import logging
+import numpy as np
 import torch
 import os
 
 
-import numpy as np
-
-
-from torch.utils.data import Dataset
 import albumentations.augmentations.functional as albumentations_F
+from torch.utils.data import Dataset
 from torchvision.transforms import functional as F
 
 
-from utilities import MASK_REAL_PATH
+from src.Utilities import MASK_REAL_PATH
 
 
 log = logging.getLogger(__name__)

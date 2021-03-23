@@ -8,7 +8,7 @@ from albumentations import (
     PadIfNeeded, ToGray, FancyPCA, MotionBlur, RandomCrop, VerticalFlip
 )
 
-from training.trainUtilities import MEAN, STD
+from src.training.TrainUtilities import MEAN, STD
 
 
 gaussian_noise_transform = Compose([

@@ -1,26 +1,24 @@
 import logging
-import config_logger
+from src import ConfigLogger
 import os
 from functools import partial
 import pandas as pd
 import pickle
 import time
 
-from training.augmentations import augmentation_pipeline, validation_augmentation_pipeline, transformation, \
+from src.training.Augmentations import augmentation_pipeline, validation_augmentation_pipeline, transformation, \
     xray_augmentation_pipeline
-from training.trainUtilities import Unnormalize
-from utilities import NOISY_STUDENT_DIRECTORY, MODELS_DIECTORY, \
-    VALIDATION_DATAFRAME_PATH, TRAINING_DATAFRAME_PATH, RESNET_FOLDER, PAIR_REAL_DATAFRAME, PAIR_FAKE_DATAFRAME, \
-    MASKS_FOLDER
-from training.DeepfakeDataset import DeepfakeDataset, ValidationDataset
-
-from xray.Dataset_XRay import XRayDataset
+from src.training.TrainUtilities import Unnormalize
+from src.Utilities import MODELS_DIECTORY, VALIDATION_DATAFRAME_PATH,\
+    RESNET_FOLDER, PAIR_REAL_DATAFRAME, PAIR_FAKE_DATAFRAME, MASKS_FOLDER
+from src.training.DeepfakeDataset import DeepfakeDataset, ValidationDataset
+from src.training_xray.Dataset_XRay import XRayDataset
 
 import torch
 from torch import distributions
 from timm.models.efficientnet import tf_efficientnet_b4_ns
 from torch.utils.data import DataLoader
-from torch.nn import functional as F, AdaptiveAvgPool2d, Dropout, Linear, AdaptiveAvgPool3d
+from torch.nn import functional as F, AdaptiveAvgPool2d, Dropout, Linear
 from torch.optim import lr_scheduler
 import torch.nn as nn
 import torch.optim as optim
@@ -88,8 +86,6 @@ BATCH_SIZE = 28
 
 MEAN = [0.485, 0.456, 0.406]
 STD = [0.229, 0.224, 0.225]
-
-NOISY_STUDENT_WEIGHTS_FILENAME = os.path.join(NOISY_STUDENT_DIRECTORY, "noisy-student-efficientnet-b0.pth")
 
 unnormalize_transform = Unnormalize(MEAN, STD)
 

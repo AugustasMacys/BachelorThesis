@@ -1,7 +1,6 @@
 """Run testing given a trained model."""
 import argparse
 import logging
-import time
 
 import pandas as pd
 import numpy as np
@@ -14,12 +13,11 @@ import torchvision
 from coviar import get_num_frames
 from coviar import load
 
-from training_coviar.dataset import clip_and_scale
-from training_coviar.coviarModel import Model
-from training_coviar.coviarTransforms import GroupCenterCrop
-from training_coviar.coviarTransforms import GroupScale
+from src.training_coviar.CoviarDataset import clip_and_scale
+from src.training_coviar.CoviarModel import Model
+from src.training_coviar.CoviarTransforms import GroupCenterCrop, GroupScale
 
-from utilities import COVIAR_TEST_DATAFRAME_PATH
+from src.Utilities import COVIAR_TEST_DATAFRAME_PATH
 
 GOP_SIZE = 12
 

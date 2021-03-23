@@ -1,7 +1,7 @@
 from torch import nn
-from training_coviar.coviarTransforms import GroupMultiScaleCrop
-from training_coviar.coviarTransforms import GroupRandomHorizontalFlip
 import torchvision
+
+from src.training_coviar.CoviarTransforms import GroupMultiScaleCrop, GroupRandomHorizontalFlip
 
 
 class Flatten(nn.Module):

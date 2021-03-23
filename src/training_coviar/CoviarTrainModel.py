@@ -12,14 +12,14 @@ import torch.nn.parallel
 from torch.utils.data import DataLoader
 import torchvision
 
-from training_coviar.dataset import CoviarDataSet, CoviarTestDataSet
-from training_coviar.coviarModel import Model
-from training_coviar.train_options import parser
-from training_coviar.coviarTransforms import GroupCenterCrop
-from training_coviar.coviarTransforms import GroupScale
+from src.training_coviar.CoviarDataset import CoviarDataSet, CoviarTestDataSet
+from src.training_coviar.CoviarModel import Model
+from src.training_coviar.CoviarTrainOptions import parser
+from src.training_coviar.CoviarTransforms import GroupCenterCrop
+from src.training_coviar.CoviarTransforms import GroupScale
 
-import config_logger
-from utilities import COVIAR_DATAFRAME_PATH, COVIAR_TEST_DATAFRAME_PATH, MODELS_DIECTORY
+from src import ConfigLogger
+from src.Utilities import COVIAR_DATAFRAME_PATH, COVIAR_TEST_DATAFRAME_PATH, MODELS_DIECTORY
 
 log = logging.getLogger(__name__)
 

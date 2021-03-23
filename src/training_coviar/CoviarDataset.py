@@ -13,7 +13,7 @@ import torch.utils.data as data
 
 from coviar import get_num_frames
 from coviar import load
-from training_coviar.coviarTransforms import color_aug
+from src.training_coviar.CoviarTransforms import color_aug
 
 
 GOP_SIZE = 12
