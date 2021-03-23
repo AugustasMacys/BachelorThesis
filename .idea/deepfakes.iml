@@ -10,6 +10,7 @@
       <excludeFolder url="file://$MODULE_DIR$/fake_video_examples" />
       <excludeFolder url="file://$MODULE_DIR$/hrnet_pretrained" />
       <excludeFolder url="file://$MODULE_DIR$/mask_xray_fake" />
+      <excludeFolder url="file://$MODULE_DIR$/mask_xray_fake_new" />
       <excludeFolder url="file://$MODULE_DIR$/mask_xray_real" />
       <excludeFolder url="file://$MODULE_DIR$/noisy_student_weights" />
       <excludeFolder url="file://$MODULE_DIR$/papers" />

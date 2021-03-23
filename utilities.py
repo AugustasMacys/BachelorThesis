@@ -35,7 +35,7 @@ RESNET_FOLDER = os.path.join(ROOT_DIR, "resnet_model")
 VALIDATION_DATAFRAME_PATH = os.path.join(DATAFRAMES_DIRECTORY, "faces_validation.csv")
 TRAINING_DATAFRAME_PATH = os.path.join(DATAFRAMES_DIRECTORY, "faces_training.csv")
 
-MASKS_FOLDER = os.path.join(ROOT_DIR, "mask_xray_fake")
+MASKS_FOLDER = os.path.join(ROOT_DIR, "mask_xray_fake_new")
 MASK_REAL_PATH = os.path.join(ROOT_DIR, "mask_xray_real", "black_mask.png")
 
 HRNET_CONFIG_FILE = os.path.join(ROOT_DIR, "x_ray_config", "hrnet_seg.yaml")

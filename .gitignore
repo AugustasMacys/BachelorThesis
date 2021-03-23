@@ -196,3 +196,6 @@ coviar/
 coviar_dataframes/
 special_video_change_format/
 reencode.sh
+mask_xray_fake_new/
+notebooks/CoviarLoss.ipynb
+prediction_dataframe2coviar.csv

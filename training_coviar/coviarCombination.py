@@ -19,7 +19,11 @@ from training_coviar.coviarModel import Model
 from training_coviar.coviarTransforms import GroupCenterCrop
 from training_coviar.coviarTransforms import GroupScale
 
+from utilities import COVIAR_TEST_DATAFRAME_PATH
+
 GOP_SIZE = 12
+
+import config_logger
 
 
 log = logging.getLogger(__name__)
@@ -110,8 +114,8 @@ class CoviarCombinedTestDataSet(data.Dataset):
             vectors.append(motion_vector)
 
         frames = self._transform(frames)
-        residuals = self._transform(frames)
-        vectors = self._transform(frames)
+        residuals = self._transform(residuals)
+        vectors = self._transform(vectors)
 
         frames = np.array(frames)
         frames = np.transpose(frames, (0, 3, 1, 2))
@@ -144,6 +148,8 @@ class CoviarCombinedTestDataSet(data.Dataset):
 
 
 def apply_shift(outputs):
+    outputs = torch.sigmoid(outputs)
+    outputs = outputs.cpu().detach().numpy()
     delta = outputs - 0.5
     sign_array = np.sign(delta)
     pos_array = delta > 0
@@ -152,7 +158,6 @@ def apply_shift(outputs):
                                                                                0.65), 0.01, 0.99)
     outputs[neg_array] = np.clip(0.5 + sign_array[neg_array] * np.power(abs(delta[neg_array]),
                                                                                0.65), 0.01, 0.99)
-
     weights = np.power(abs(delta), 1.0) + 1e-4
     final_score = float((outputs * weights).sum() / weights.sum())
     return final_score
@@ -169,11 +174,9 @@ if __name__ == '__main__':
     parser.add_argument('--modelIframe', type=str)
     parser.add_argument('--modelVector', type=str)
     parser.add_argument('--modelResidual', type=str)
-    parser.add_argument('-j', '--workers', default=1, type=int, metavar='N',
+    parser.add_argument('-j', '--workers', default=4, type=int, metavar='N',
                         help='number of workers for data loader.')
 
-    parser.add_argument('--representation', type=str, choices=['iframe', 'mv', 'residual'],
-                        help='data representation.')
     parser.add_argument('--arch', type=str, default="resnet34",
                         help='base architecture.')
     parser.add_argument('--num_segments', type=int, default=3,
@@ -184,16 +187,17 @@ if __name__ == '__main__':
     num_classes = 1
 
     model_motion_vector = Model(num_classes, args.num_segments, 'mv', args.arch)
-    model_motion_vector.to(gpu)
-    model_motion_vector = model_motion_vector.load_state_dict(torch.load(args.modelVector), strict=True)
+    model_motion_vector.load_state_dict(torch.load(args.modelVector), strict=True)
 
     model_residual = Model(num_classes, args.num_segments, 'residual', args.arch)
-    model_residual.to(gpu)
-    model_residual = model_residual.load_state_dict(torch.load(args.modelResidual), strict=True)
+    model_residual.load_state_dict(torch.load(args.modelResidual), strict=True)
 
     model_frame = Model(num_classes, args.num_segments, 'iframe')
+    model_frame.load_state_dict(torch.load(args.modelIframe), strict=True)
+
     model_frame.to(gpu)
-    model_frame = model_frame.load_state_dict(torch.load(args.modelIframe), strict=True)
+    model_motion_vector.to(gpu)
+    model_residual.to(gpu)
 
     model_frame.eval()
     model_residual.eval()
@@ -201,7 +205,7 @@ if __name__ == '__main__':
 
     log.info("Models are loaded")
 
-    testing_dataframe = pd.read_csv(args.dataframe)
+    testing_dataframe = pd.read_csv(COVIAR_TEST_DATAFRAME_PATH)
 
     data_loader = data.DataLoader(
         CoviarCombinedTestDataSet(
@@ -221,7 +225,7 @@ if __name__ == '__main__':
     outputs = []
     labels = []
 
-    for combination in data_loader:
+    for i, combination in enumerate(data_loader):
         label = combination["label"].to(gpu)
         vector = combination["vector"].to(gpu)
         frame = combination["frame"].to(gpu)
@@ -230,17 +234,14 @@ if __name__ == '__main__':
         output_vector = model_motion_vector(vector)
         output_vector = output_vector.view((-1, args.num_segments) + output_vector.size()[1:])
         output_vector = apply_shift(output_vector)
-        # output_vector = torch.mean(output_vector, dim=1)
 
         output_residual = model_residual(residual)
         output_residual = output_residual.view((-1, args.num_segments) + output_residual.size()[1:])
         output_residual = apply_shift(output_residual)
-        # output_residual = torch.mean(output_residual, dim=1)
 
-        output_frame = model_residual(residual)
-        output_frame = output_residual.view((-1, args.num_segments) + output_frame.size()[1:])
+        output_frame = model_frame(frame)
+        output_frame = output_frame.view((-1, args.num_segments) + output_frame.size()[1:])
         output_frame = apply_shift(output_frame)
-        # output_frame = torch.mean(output_frame, dim=1)
 
         mean_outputs = (output_vector + output_residual + output_frame) / 3
 
@@ -250,4 +251,5 @@ if __name__ == '__main__':
     df = pd.DataFrame(list(zip(outputs, labels)),
                       columns=['Prediction', 'Truth'])
 
-    df.to_csv("prediction_dataframe.csv", index=False)
+    df.to_csv("prediction_dataframe2.csv", index=False)
+    assert len(outputs) == 4000
