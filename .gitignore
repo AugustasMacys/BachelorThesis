@@ -182,3 +182,4 @@ src/training_xray/real_mask.png
 preview/
 src/inference/scores_efficient_net4_3D.csv
 faceX-rayDataCreation/
+.idea
