@@ -5,17 +5,19 @@ import shutil
 
 from glob import glob
 
-ROOT_DIR = os.path.dirname(os.path.abspath(__file__))
+ROOT_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 METADATA_FILENAME = "metadata.json"
 
+SRC_DIR = os.path.join(ROOT_DIR, "src")
+
 DATAFRAMES_DIRECTORY = os.path.join(ROOT_DIR, "dataframes")
-PAIR_DATAFRAMES_UPDATED_DIRECTORY = os.path.join(ROOT_DIR, "dataframes_pairs_updated")
+PAIR_DATAFRAMES_UPDATED_DIRECTORY = os.path.join(DATAFRAMES_DIRECTORY, "dataframes_pairs_updated")
 PAIR_REAL_DATAFRAME = os.path.join(PAIR_DATAFRAMES_UPDATED_DIRECTORY, "real_crops.csv")
 PAIR_FAKE_DATAFRAME = os.path.join(PAIR_DATAFRAMES_UPDATED_DIRECTORY, "fake_crops.csv")
 
 MODELS_DIECTORY = os.path.join(ROOT_DIR, "trained_models")
 
-VALIDATION_DATAFRAME_PATH = os.path.join(DATAFRAMES_DIRECTORY, "faces_validation.csv")
+VALIDATION_DATAFRAME_PATH = os.path.join(DATAFRAMES_DIRECTORY, "faces_validation_new.csv")
 VALIDATION_DIRECTORY = os.path.join(ROOT_DIR, "data", "test")
 VALIDATION_FACES_DIRECTORY = os.path.join(ROOT_DIR, "validation_faces")
 VALIDATION_LABELS = os.path.join(VALIDATION_DIRECTORY, "labels.csv")
@@ -29,7 +31,7 @@ RESNET_FOLDER = os.path.join(ROOT_DIR, "special_models", "resnet_model")
 MASKS_FOLDER = os.path.join(ROOT_DIR, "mask_xray_fake_new")
 MASK_REAL_PATH = os.path.join(ROOT_DIR, "mask_xray_real", "black_mask.png")
 
-HRNET_CONFIG_FILE = os.path.join(ROOT_DIR, "xray_config", "hrnet_seg.yaml")
+HRNET_CONFIG_FILE = os.path.join(SRC_DIR, "xray_config", "hrnet_seg.yaml")
 
 PRIVATE_TESTING_DIRECTORY = os.path.join(ROOT_DIR, "aws")
 PRIVATE_TESTING_LABELS_PATH = os.path.join(PRIVATE_TESTING_DIRECTORY, "labels_updated.csv")
@@ -45,6 +47,14 @@ TESTING_FOLDER_TO_IDENTIFIERS_PATH = os.path.join(ROOT_DIR, "testing_folder_to_i
 COVIAR_DATAFRAME_FOLDER = os.path.join(DATAFRAMES_DIRECTORY, "coviar_dataframes")
 COVIAR_DATAFRAME_PATH = os.path.join(COVIAR_DATAFRAME_FOLDER, "coviar_dataframe.csv")
 COVIAR_TEST_DATAFRAME_PATH = os.path.join(COVIAR_DATAFRAME_FOLDER, "coviar_test_dataframe.csv")
+
+FACE_XRAY_REAL_DATAFRAME_PATH = os.path.join(PAIR_DATAFRAMES_UPDATED_DIRECTORY, "real_pairs_xray.csv")
+FACE_XRAY_FAKE_DATAFRAME_PATH = os.path.join(PAIR_DATAFRAMES_UPDATED_DIRECTORY, "fake_pairs_xray.csv")
+
+PREVIEW_MODELS = os.path.join(ROOT_DIR, "preview", "trained_models")
+PREVIEW_DATAFRAMES = os.path.join(ROOT_DIR, "preview", "dataframes")
+PREVIEW_TEST = os.path.join(PREVIEW_DATAFRAMES, "test_dataframe.csv")
+PREVIEW_TRAIN = os.path.join(PREVIEW_DATAFRAMES, "training_dataframe.csv")
 
 
 def get_specific_video_names(folder, number=20, label='FAKE'):

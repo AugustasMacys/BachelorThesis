@@ -98,17 +98,10 @@ def augmentation_pipeline_3D(size_height=224, size_width=192):
     )
 
 
-def xray_augmentation_pipeline(size=224):
+def xray_augmentation_pipeline():
     return Compose([
         HorizontalFlip(p=0.2),
-        VerticalFlip(p=0.01),
-        OneOf([
-            IsotropicResize(max_side=size, interpolation_down=cv2.INTER_AREA, interpolation_up=cv2.INTER_CUBIC),
-            IsotropicResize(max_side=size, interpolation_down=cv2.INTER_AREA, interpolation_up=cv2.INTER_LINEAR),
-            IsotropicResize(max_side=size, interpolation_down=cv2.INTER_LINEAR, interpolation_up=cv2.INTER_LINEAR),
-        ], p=1),
-        PadIfNeeded(min_height=size, min_width=size, border_mode=cv2.BORDER_CONSTANT),
-        ShiftScaleRotate(shift_limit=0.1, scale_limit=0.2, rotate_limit=10, border_mode=cv2.BORDER_CONSTANT, p=0.2)],
+        VerticalFlip(p=0.01)],
         additional_targets={'image2': 'image'}
     )
 

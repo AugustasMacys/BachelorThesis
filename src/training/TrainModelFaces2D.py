@@ -3,14 +3,14 @@ from src import ConfigLogger
 import os
 from functools import partial
 import pandas as pd
-import pickle
 import time
 
-from src.training.Augmentations import augmentation_pipeline, validation_augmentation_pipeline, transformation, \
+from src.training.Augmentations import augmentation_pipeline, validation_augmentation_pipeline, \
     xray_augmentation_pipeline
 from src.training.TrainUtilities import Unnormalize
-from src.Utilities import MODELS_DIECTORY, VALIDATION_DATAFRAME_PATH,\
-    RESNET_FOLDER, PAIR_REAL_DATAFRAME, PAIR_FAKE_DATAFRAME, MASKS_FOLDER
+from src.Utilities import MODELS_DIECTORY, VALIDATION_DATAFRAME_PATH, \
+    RESNET_FOLDER, PAIR_REAL_DATAFRAME, PAIR_FAKE_DATAFRAME, MASKS_FOLDER, FACE_XRAY_REAL_DATAFRAME_PATH, \
+    FACE_XRAY_FAKE_DATAFRAME_PATH, PREVIEW_TEST, PREVIEW_TRAIN
 from src.training.DeepfakeDataset import DeepfakeDataset, ValidationDataset
 from src.training_xray.Dataset_XRay import XRayDataset
 
@@ -97,22 +97,29 @@ def collate_fn(batch):
     return torch.utils.data.dataloader.default_collate(batch)
 
 
-def create_data_loaders(batch_size, num_workers, non_existing_files=None, X_RAY=False):
-    train_real_df = pd.read_csv(PAIR_REAL_DATAFRAME)
-    train_fake_df = pd.read_csv(PAIR_FAKE_DATAFRAME)
+def create_data_loaders(batch_size, num_workers, non_existing_files=None,
+                        X_RAY=False, preview=False):
+    if X_RAY:
+        if preview:
+            train_df = pd.read_csv(PREVIEW_TRAIN)
+        else:
+            train_real_df = pd.read_csv(FACE_XRAY_REAL_DATAFRAME_PATH)
+            train_fake_df = pd.read_csv(FACE_XRAY_FAKE_DATAFRAME_PATH)
+    else:
+        train_real_df = pd.read_csv(PAIR_REAL_DATAFRAME)
+        train_fake_df = pd.read_csv(PAIR_FAKE_DATAFRAME)
 
-    val_df = pd.read_csv(VALIDATION_DATAFRAME_PATH)
-
-    if non_existing_files is not None:
-        with open('non_existing_files', 'rb') as fp:
-            non_existing_files = pickle.load(fp)
+    if preview:
+        val_df = pd.read_csv(PREVIEW_TEST)
+    else:
+        val_df = pd.read_csv(VALIDATION_DATAFRAME_PATH)
 
     if X_RAY:
-        train_dataset = XRayDataset(train_real_df, train_fake_df, xray_augmentation_pipeline(),
+        train_dataset = XRayDataset(train_df, xray_augmentation_pipeline(),
                                     MASKS_FOLDER)
 
         train_loader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True, num_workers=num_workers,
-                                  pin_memory=True, collate_fn=collate_fn)
+                                  pin_memory=True, collate_fn=collate_fn, drop_last=False)
 
     else:
         train_dataset = DeepfakeDataset(train_real_df, train_fake_df, augmentation_pipeline(), non_existing_files)
@@ -120,9 +127,15 @@ def create_data_loaders(batch_size, num_workers, non_existing_files=None, X_RAY=
         train_loader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True, num_workers=num_workers,
                                   pin_memory=True, collate_fn=collate_fn)
 
-    validation_dataset = ValidationDataset(val_df, validation_augmentation_pipeline())
+    if X_RAY:
+        validation_dataset = ValidationDataset(val_df, validation_augmentation_pipeline(height=224, width=224))
 
-    validation_loader = DataLoader(validation_dataset, batch_size=batch_size, shuffle=False,
+        validation_loader = DataLoader(validation_dataset, batch_size=batch_size, shuffle=False,
+                                       num_workers=num_workers, pin_memory=True)
+    else:
+        validation_dataset = ValidationDataset(val_df, validation_augmentation_pipeline())
+
+        validation_loader = DataLoader(validation_dataset, batch_size=batch_size, shuffle=False,
                                    num_workers=num_workers, pin_memory=True)
 
     return train_loader, validation_loader

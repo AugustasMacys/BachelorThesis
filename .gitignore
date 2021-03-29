@@ -176,3 +176,9 @@ special_models/
 dataframes/
 notebooks/ResultsAnalyser.ipynb
 src/inference/predictions
+src/training_xray/example.png
+src/training_xray/fake_mask.png
+src/training_xray/real_mask.png
+preview/
+src/inference/scores_efficient_net4_3D.csv
+faceX-rayDataCreation/

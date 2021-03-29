@@ -8,32 +8,29 @@ import insightface
 
 import numpy as np
 from PIL import Image
+from timm.models.efficientnet_blocks import InvertedResidual
 import torch
 from skimage.filters import threshold_yen
 from skimage.exposure import rescale_intensity
 
 from src.training.Augmentations import isotropically_resize_image, put_to_center, transformation
-from src.training.TrainModelFaces2D import MyResNeXt, DeepfakeClassifier
-from src.Utilities import MODELS_DIECTORY, VALIDATION_DIRECTORY, PRIVATE_TESTING_DIRECTORY, PRIVATE_TESTING_LABELS_PATH
-
+from src.training.TrainModelFaces2D import DeepfakeClassifier
+from src.Utilities import MODELS_DIECTORY, VALIDATION_DIRECTORY
+from src.training.TrainModelFaces3D import DeepfakeClassifier3D_V3, ConvolutionExpander
 
 model_save_path = os.path.join(MODELS_DIECTORY, "lowest_loss_model3.pth")
 
-scores_path = "scores_efficient_net4_private_test_set_remaining.csv"
-final_path = "final_efficient_net4_private_test_set_remaining.csv"
-
-# public test set array([4110, 4364, 4540, 4600, 4871, 5058, 5130, 5174, 5260, 5420, 5575,
-#        5608, 5622, 5663, 6161, 6246, 6418, 6769, 6904, 7363, 7568, 7672,
-#        7767, 7853])
+scores_path = "scores_efficient_net4_3D_new.csv"
+final_path = "final_efficient_net4_3D_new.csv"
 
 
 class InferenceLoader:
 
     def __init__(self, video_dir, face_detector,
-                 transform=None, batch_size=24, face_limit=15):
+                 transform=None, batch_size=5, face_limit=15, dimensions_3D=False):
         self.video_dir = video_dir
         self.test_videos = sorted([y for x in os.walk(self.video_dir) for y in glob(
-            os.path.join(x[0], '*.mp4'))])[3990:]
+            os.path.join(x[0], '*.mp4'))])
 
         self.transform = transform
         self.face_detector = face_detector
@@ -45,9 +42,10 @@ class InferenceLoader:
         self.score = defaultdict(lambda: 0.5)
         self.feedback_queue = []
 
+        self.need_resize = dimensions_3D
+
     def iter_one_face(self):
         for file_name in self.test_videos:
-            # full_path = os.path.join(self.video_dir, file_name)
 
             capturator = cv2.VideoCapture(file_name)
             frames_number = int(capturator.get(cv2.CAP_PROP_FRAME_COUNT))
@@ -98,7 +96,8 @@ class InferenceLoader:
 
                     resized_frame = isotropically_resize_image(frame, 224)
                     resized_frame = put_to_center(resized_frame, 224)
-                    # cv2.imwrite("test_inference.png", resized_frame)
+                    if self.need_resize:
+                        resized_frame = cv2.resize(resized_frame, (192, 224))
                     transformed_image = Image.fromarray(resized_frame[:, :, ::-1])
 
                     # normalise and apply prediction transform
@@ -149,14 +148,13 @@ class InferenceLoader:
             pos_array = delta > 0
             neg_array = delta < 0
             outgoing_score[pos_array] = np.clip(0.5 + sign_array[pos_array] * np.power(abs(delta[pos_array]),
-                                                                                    0.65), 0.01, 0.99)
+                                                                                       0.65), 0.01, 0.99)
             outgoing_score[neg_array] = np.clip(0.5 + sign_array[neg_array] * np.power(abs(delta[neg_array]),
-                                                                                    0.65), 0.01, 0.99)
+                                                                                       0.65), 0.01, 0.99)
 
             weights = np.power(abs(delta), 1.0) + 1e-4
             final_score = float((outgoing_score * weights).sum() / weights.sum())
             self.score[file_name] = final_score
-            print("[%s] %.6f" % (file_name, self.score[file_name]))
 
         # Write just outgoing results just in case of CUDA: Memory Out of Space Error
         with open(scores_path, "w") as f:
@@ -167,15 +165,33 @@ class InferenceLoader:
 if __name__ == '__main__':
     gpu = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 
-    model = DeepfakeClassifier()
-    model.to(gpu)
-    model.load_state_dict(torch.load(model_save_path))
-    model.eval()
+    model = DeepfakeClassifier3D_V3()
+    SEQUENCE_LENGTH = 5
 
-    validation_directory = PRIVATE_TESTING_DIRECTORY
+    for module in model.modules():
+        if isinstance(module, InvertedResidual):
+            if module.exp_ratio != 1.0:
+                expansion_con = module.conv_pw
+                expander = ConvolutionExpander(expansion_con.in_channels, expansion_con.out_channels, SEQUENCE_LENGTH)
+                # 5 dimension tensor and we take third dimension
+                expander.conv.weight.data[:, :, 0, :, :].copy_(expansion_con.weight.data / 3)
+                expander.conv.weight.data[:, :, 1, :, :].copy_(expansion_con.weight.data / 3)
+                expander.conv.weight.data[:, :, 2, :, :].copy_(expansion_con.weight.data / 3)
+                module.conv_pw = expander
+
+    pretrained_weights_path = r"D:\deepfakes\trained_models\3Dnew_model5.pth"
+    model.load_state_dict(torch.load(pretrained_weights_path))
+    model.to(gpu)
+    # uncomment for 2D model
+    # model = DeepfakeClassifier()
+    # model.to(gpu)
+    # model.load_state_dict(torch.load(model_save_path))
+    # model.eval()
+
+    validation_directory = VALIDATION_DIRECTORY
     face_detector = insightface.model_zoo.get_model('retinaface_r50_v1')
     face_detector.prepare(ctx_id=0, nms=0.4)
-    loader = InferenceLoader(validation_directory, face_detector, transformation)
+    loader = InferenceLoader(validation_directory, face_detector, transformation, dimensions_3D=True)
 
     for batch in loader:
         batch = batch.cuda(non_blocking=True)
