@@ -1,4 +1,3 @@
-"""Run training."""
 import logging
 import os
 import time
@@ -60,7 +59,6 @@ def train(model, criterion, optimizer, epoch, cur_lr):
 
         loss = criterion(y_pred, target)
 
-        # Might leave, but maybe not (come back) need to debug to make sure correct
         losses.update(loss.item(), n)
 
         loss.backward()
@@ -218,7 +216,7 @@ if __name__ == '__main__':
         params += [{'params': value, 'lr': args.lr, 'lr_mult': lr_mult, 'decay_mult': decay_mult}]
 
     model.to(gpu)
-    path_trained_model = os.path.join(MODELS_DIECTORY, "coviar_iframe_model3.pth")
+    path_trained_model = os.path.join(MODELS_DIECTORY, "coviar_iframe_model.pth")
     model.load_state_dict(torch.load(path_trained_model), strict=True)
     log.info("Model prepared")
     optimizer = torch.optim.Adam(

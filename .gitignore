@@ -183,3 +183,4 @@ preview/
 src/inference/scores_efficient_net4_3D.csv
 faceX-rayDataCreation/
 .idea
+src/inference/Untitled.ipynb

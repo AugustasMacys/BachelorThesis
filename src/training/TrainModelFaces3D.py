@@ -29,7 +29,7 @@ from src.Utilities import SEQUENCE_DATAFRAME_PATH, REAL_FOLDER_TO_IDENTIFIERS_PA
 from src.training.Augmentations import augmentation_pipeline_3D, gaussian_noise_transform_3D, \
     validation_augmentation_pipeline, put_to_center
 from src.training.TrainModelFaces2D import collate_fn
-from src.training.TrainUtilities import MEAN, STD
+from src.Utilities import MEAN, STD
 
 log = logging.getLogger(__name__)
 
@@ -391,14 +391,13 @@ if __name__ == '__main__':
 
     batch_size = 4
     batch_size_testing = 4
-    num_workers = 2
+    num_workers = 4
 
     train_dataset = DeepFakeDataset3D(sequence_dataframe, real_folder_to_identifiers, fake_folder_to_identifiers,
                                       augmentation_pipeline_3D())
     train_loader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True, num_workers=num_workers,
                               pin_memory=True, collate_fn=collate_fn, drop_last=True)
 
-    # need to create testing dataset
     testing_sequence_dataframe = pd.read_csv(SEQUENCE_DATAFRAME_TESTING_PATH)
     with open(TESTING_FOLDER_TO_IDENTIFIERS_PATH, 'rb') as handle:
         testing_folder_to_identifiers = pickle.load(handle)

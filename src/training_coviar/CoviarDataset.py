@@ -1,9 +1,3 @@
-"""
-Definition of PyTorch "Dataset" that iterates through compressed videos
-and return compressed representations (I-frames, motion vectors,
-or residuals) for training or testing.
-"""
-
 import logging
 import random
 

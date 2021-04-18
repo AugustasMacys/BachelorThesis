@@ -1,6 +1,7 @@
 import logging
 import os
 import time
+import pickle
 
 from matplotlib import pyplot as plt
 import pandas as pd
@@ -11,7 +12,7 @@ from torch.optim import lr_scheduler
 
 
 from src.training.TrainModelFaces2D import create_data_loaders
-from src.Utilities import HRNET_CONFIG_FILE, PREVIEW_MODELS, PREVIEW_TEST
+from src.Utilities import HRNET_CONFIG_FILE, PREVIEW_MODELS, PREVIEW_TEST, VALIDATION_LABELS, VALIDATION_DATAFRAME_PATH
 from src.training_xray.CNNB import get_seg_model
 from src.training_xray.CNNC import get_nnc
 from src.xray_config import config, update_config
@@ -22,7 +23,7 @@ log = logging.getLogger(__name__)
 
 MAX_ITERATIONS = 200000
 BATCHES_PER_EPOCH = 2000
-LOSS_ALPHA = 1000
+LOSS_ALPHA = 100
 SCHEDULER_STEP = 50000
 
 
@@ -36,7 +37,7 @@ def evaluate_and_test_xray(model_nnb, model_nnc, criterion_nnc, minimum_loss, da
     model_nnc.eval()
     running_loss = 0
 
-    predictions = []
+    # predictions = []
 
     for i, (images, labels) in enumerate(dataloaders["val"]):
         with torch.no_grad():
@@ -67,13 +68,15 @@ def evaluate_and_test_xray(model_nnb, model_nnc, criterion_nnc, minimum_loss, da
 
             loss_nnc = criterion_nnc(classifications, labels.unsqueeze(1))
             running_loss += loss_nnc.item() * images.size(0)
-            predictions.append(probabilities.detach().cpu().numpy())
+            # predictions.append(probabilities.detach().cpu().numpy())
 
-    flat_predictions = [item for sublist in predictions for item in sublist]
-    ap = average_precision_score(ground_truth, flat_predictions)
-    roc = roc_auc_score(ground_truth, flat_predictions)
-    log.info('AP: {:4f}'.format(ap))
-    log.info('ROC: {:4f}'.format(roc))
+    # flat_predictions = [item for sublist in predictions for item in sublist]
+    # with open("predictions_new.txt", "wb") as fp:  # Pickling
+    #     pickle.dump(flat_predictions, fp)
+    # ap = average_precision_score(ground_truth, flat_predictions)
+    # roc = roc_auc_score(ground_truth, flat_predictions)
+    # log.info('AP: {:4f}'.format(ap))
+    # log.info('ROC: {:4f}'.format(roc))
 
     total_loss = running_loss / dataset_size["val"]
     log.info('Validation Loss: {:4f}'.format(total_loss))
@@ -192,8 +195,8 @@ if __name__ == '__main__':
     model_nnb.to(gpu)
     model_nnc.to(gpu)
 
-    model_nnb.load_state_dict(torch.load(r"D:\deepfakes\preview\trained_models\newest_x_ray_model_B9.pth"))
-    model_nnc.load_state_dict(torch.load(r"D:\deepfakes\preview\trained_models\newest_x_ray_model_C9.pth"))
+    # model_nnb.load_state_dict(torch.load(r"D:\deepfakes\trained_models\modelsXray\preview_newest_x_ray_model_B9.pth"))
+    # model_nnc.load_state_dict(torch.load(r"D:\deepfakes\trained_models\modelsXray\preview_newest_x_ray_model_C9.pth"))
 
     batch_size = 40
     epochs = 1000
@@ -227,6 +230,7 @@ if __name__ == '__main__':
 
     log.info(f"Start Training")
 
-    ground_truth = list(pd.read_csv(PREVIEW_TEST).label)
+    ground_truth = list(pd.read_csv(VALIDATION_DATAFRAME_PATH).label)
 
+    # evaluate_and_test_xray(model_nnb, model_nnc, criterion_nnc, 1, dataloaders)
     train_xray(epochs, lr_scheduler, optimizer, model_nnb, model_nnc, dataloaders, criterion_nnb, criterion_nnc)

@@ -1,5 +1,3 @@
-"""Training options."""
-
 import argparse
 
 parser = argparse.ArgumentParser(description="CoViAR")
@@ -11,7 +9,6 @@ parser.add_argument('--arch', type=str, default="resnet152",
                     help='base architecture.')
 parser.add_argument('--num_segments', type=int, default=3,
                     help='number of TSN segments.')
-# Comeback
 parser.add_argument('--no-accumulation', action='store_true',
                     help='disable accumulation of motion vectors and residuals.')
 

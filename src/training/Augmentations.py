@@ -5,10 +5,11 @@ from torchvision import transforms
 from albumentations import (
     HorizontalFlip, GaussianBlur, HueSaturationValue, DualTransform, GaussNoise, OneOf,
     Compose, RandomBrightnessContrast, ImageCompression, ShiftScaleRotate,
-    PadIfNeeded, ToGray, FancyPCA, MotionBlur, RandomCrop, VerticalFlip
+    PadIfNeeded, ToGray, FancyPCA, MotionBlur, VerticalFlip, CoarseDropout,
+    RandomSizedCrop
 )
 
-from src.training.TrainUtilities import MEAN, STD
+from src.Utilities import MEAN, STD
 
 
 gaussian_noise_transform = Compose([
@@ -20,6 +21,12 @@ gaussian_noise_transform = Compose([
 gaussian_noise_transform_3D = Compose([
         GaussNoise(p=0.1)]
     )
+
+
+transformation = transforms.Compose([
+            transforms.ToTensor(),
+            transforms.Normalize(mean=MEAN, std=STD)
+        ])
 
 
 def put_to_center(img, input_size):
@@ -61,23 +68,29 @@ class IsotropicResize(DualTransform):
                                           interpolation_up=interpolation_up)
 
 
-def augmentation_pipeline(size=224):
+def augmentation_preprocessing_pipeline(size=224):
     return Compose([
-        ImageCompression(quality_lower=60, quality_upper=100, p=0.5),
-        GaussianBlur(blur_limit=3, p=0.05),
-        MotionBlur(p=0.05),
-        HorizontalFlip(),
         OneOf([
             IsotropicResize(max_side=size, interpolation_down=cv2.INTER_AREA, interpolation_up=cv2.INTER_CUBIC),
             IsotropicResize(max_side=size, interpolation_down=cv2.INTER_AREA, interpolation_up=cv2.INTER_LINEAR),
             IsotropicResize(max_side=size, interpolation_down=cv2.INTER_LINEAR, interpolation_up=cv2.INTER_LINEAR),
         ], p=1),
-        PadIfNeeded(min_height=size, min_width=size, border_mode=cv2.BORDER_CONSTANT),
+        PadIfNeeded(min_height=size, min_width=size, border_mode=cv2.BORDER_CONSTANT, p=1.0, always_apply=True)],
+        additional_targets={'image2': 'image'})
+
+
+def augmentation_pipeline(size=224):
+    return Compose([
+        RandomSizedCrop((112, 220), height=size, width=size, p=0.3),
+        ImageCompression(quality_lower=60, quality_upper=100, p=0.5),
+        CoarseDropout(max_holes=2, max_width=80, max_height=80, min_width=60, min_height=60, p=0.2),
+        GaussianBlur(blur_limit=3, p=0.05),
+        MotionBlur(p=0.05),
+        HorizontalFlip(),
         OneOf([RandomBrightnessContrast(), FancyPCA(), HueSaturationValue()], p=0.7),
         ToGray(p=0.2),
         ShiftScaleRotate(shift_limit=0.1, scale_limit=0.2, rotate_limit=10, border_mode=cv2.BORDER_CONSTANT, p=0.5)],
-        additional_targets={'image2': 'image'}
-    )
+        additional_targets={'image2': 'image'})
 
 
 def augmentation_pipeline_3D(size_height=224, size_width=192):
@@ -111,9 +124,3 @@ def validation_augmentation_pipeline(height=224, width=192):
         IsotropicResize(max_side=height, interpolation_down=cv2.INTER_AREA, interpolation_up=cv2.INTER_CUBIC),
         PadIfNeeded(min_height=height, min_width=width, border_mode=cv2.BORDER_CONSTANT),
     ])
-
-
-transformation = transforms.Compose([
-            transforms.ToTensor(),
-            transforms.Normalize(mean=MEAN, std=STD)
-        ])

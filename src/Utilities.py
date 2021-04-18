@@ -1,9 +1,9 @@
 import json
+from glob import glob
 import os
-import pandas as pd
 import shutil
 
-from glob import glob
+import pandas as pd
 
 ROOT_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 METADATA_FILENAME = "metadata.json"
@@ -55,6 +55,10 @@ PREVIEW_MODELS = os.path.join(ROOT_DIR, "preview", "trained_models")
 PREVIEW_DATAFRAMES = os.path.join(ROOT_DIR, "preview", "dataframes")
 PREVIEW_TEST = os.path.join(PREVIEW_DATAFRAMES, "test_dataframe.csv")
 PREVIEW_TRAIN = os.path.join(PREVIEW_DATAFRAMES, "training_dataframe.csv")
+
+
+MEAN = [0.485, 0.456, 0.406]
+STD = [0.229, 0.224, 0.225]
 
 
 def get_specific_video_names(folder, number=20, label='FAKE'):

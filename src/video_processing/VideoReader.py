@@ -1,18 +1,13 @@
 import cv2
 import insightface
 import ntpath
-import pandas as pd
 import os
 from glob import glob
 
 from tqdm import tqdm
 
 
-from src.Utilities import TRAIN_FAKE_FACES_DIRECTORY, TRAIN_REAL_FACES_DIRECTORY, DATAFRAMES_DIRECTORY, \
-    VALIDATION_FACES_DIRECTORY, VALIDATION_DIRECTORY, PAIR_DATAFRAMES_DIRECTORY, TRAIN_FAKE_FACES_DIRECTORY2,\
-    TRAIN_FAKE_FACES_DIRECTORY3, TRAIN_FAKE_FACES_DIRECTORY3_SSD
-
-FACE_SIZE = 224
+from src.Utilities import VALIDATION_DIRECTORY, VALIDATION_FACES_DIRECTORY
 
 
 def video_frame_extractor(video_name, folder):
@@ -67,41 +62,13 @@ def video_frame_extractor(video_name, folder):
 
 
 if __name__ == '__main__':
-    # parser = argparse.ArgumentParser()
-    # parser.add_argument("--videoFolder")
-    # args = parser.parse_args()
-    # validation_video_paths = glob(os.path.join(VALIDATION_DIRECTORY, "*.mp4"))
-    # training_real_dataframe_path = os.path.join(PAIR_DATAFRAMES_DIRECTORY, "real_training_dataframe.csv")
-    training_fake_dataframe_path = os.path.join(PAIR_DATAFRAMES_DIRECTORY, "fake_training_dataframe3.csv")
-    # real_video_filenames_dataframe = pd.read_csv(training_real_dataframe_path)
-    fake_video_filenames_dataframe = pd.read_csv(training_fake_dataframe_path)
-    # real_video_filenames = real_video_filenames_dataframe["video_name"].values
-    fake_video_filenames_hdd = list(fake_video_filenames_dataframe["video_name"].values[:48000])
-    fake_video_filenames_ssd = list(fake_video_filenames_dataframe["video_name"].values[48000:])
-    # print(len(real_video_filenames))
-    # print(len(fake_video_filenames))
-    # print(len(real_video_filenames))
-    # exit(0)
-    # video_filenames = [os.path.join(REAL_VIDEO_SAMPLE_DIRECTORY, path) for path in os.listdir(REAL_VIDEO_SAMPLE_DIRECTORY)]
-    # print(video_filenames)
-    # output_folder = TEST_VIDEO_READER_DIRETORY
-    # output_folder = TRAIN_REAL_FACES_DIRECTORY
-    # output_folder = VALIDATION_FACES_DIRECTORY
+    output_folder = VALIDATION_DIRECTORY
+    videos = glob(os.path.join(VALIDATION_DIRECTORY, "*.mp4"))
     model = insightface.model_zoo.get_model('retinaface_r50_v1')
     model.prepare(ctx_id=0, nms=0.4)
-    # with tqdm(total=len(real_video_filenames)) as bar:
-    #     for video in real_video_filenames:
-    #         video_frame_extractor(video, output_folder)
-    #         bar.update()
 
-    output_folder = TRAIN_FAKE_FACES_DIRECTORY3_SSD
-    with tqdm(total=len(fake_video_filenames_ssd)) as bar:
-        for video in fake_video_filenames_ssd:
-            video_frame_extractor(video, output_folder)
-            bar.update()
-
-    output_folder = TRAIN_FAKE_FACES_DIRECTORY3
-    with tqdm(total=len(fake_video_filenames_hdd)) as bar:
-        for video in fake_video_filenames_hdd:
+    output_folder = VALIDATION_FACES_DIRECTORY
+    with tqdm(total=len(videos)) as bar:
+        for video in videos:
             video_frame_extractor(video, output_folder)
             bar.update()

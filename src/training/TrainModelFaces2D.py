@@ -6,32 +6,41 @@ import pandas as pd
 import time
 
 from src.training.Augmentations import augmentation_pipeline, validation_augmentation_pipeline, \
-    xray_augmentation_pipeline
-from src.training.TrainUtilities import Unnormalize
-from src.Utilities import MODELS_DIECTORY, VALIDATION_DATAFRAME_PATH, \
-    RESNET_FOLDER, PAIR_REAL_DATAFRAME, PAIR_FAKE_DATAFRAME, MASKS_FOLDER, FACE_XRAY_REAL_DATAFRAME_PATH, \
+    xray_augmentation_pipeline, augmentation_preprocessing_pipeline
+from src.Utilities import MODELS_DIECTORY, VALIDATION_DATAFRAME_PATH,\
+    PAIR_REAL_DATAFRAME, PAIR_FAKE_DATAFRAME, MASKS_FOLDER, FACE_XRAY_REAL_DATAFRAME_PATH, \
     FACE_XRAY_FAKE_DATAFRAME_PATH, PREVIEW_TEST, PREVIEW_TRAIN
 from src.training.DeepfakeDataset import DeepfakeDataset, ValidationDataset
 from src.training_xray.Dataset_XRay import XRayDataset
 
+from timm.models.efficientnet import tf_efficientnet_b4_ns
 import torch
 from torch import distributions
-from timm.models.efficientnet import tf_efficientnet_b4_ns
 from torch.utils.data import DataLoader
 from torch.nn import functional as F, AdaptiveAvgPool2d, Dropout, Linear
 from torch.optim import lr_scheduler
 import torch.nn as nn
 import torch.optim as optim
-import torchvision.models as models
 
 log = logging.getLogger(__name__)
 
-# from efficientnet_pytorch import EfficientNet
 
 MAX_ITERATIONS = 100000
 BATCHES_PER_EPOCH = 5000
 
-RESNET_WEIGHTS = os.path.join(RESNET_FOLDER, "resnext50_32x4d-7cdf4587.pth")
+MEAN = [0.485, 0.456, 0.406]
+STD = [0.229, 0.224, 0.225]
+
+model_save_path = os.path.join(MODELS_DIECTORY, "lowest_loss_model_new_heavy_augmentations_newer_newer.pth")
+
+
+def freeze_until(net, param_name):
+    found_name = False
+    for name, params in net.named_parameters():
+        if name == param_name:
+            found_name = True
+        params.requires_grad = found_name
+
 
 encoder_params = {
     "tf_efficientnet_b4_ns": {
@@ -60,38 +69,6 @@ class DeepfakeClassifier(nn.Module):
         return x
 
 
-class MyResNeXt(models.resnet.ResNet):
-    def __init__(self, training=True):
-        super(MyResNeXt, self).__init__(block=models.resnet.Bottleneck,
-                                        layers=[3, 4, 6, 3],
-                                        groups=32,
-                                        width_per_group=4)
-
-        self.load_state_dict(torch.load(RESNET_WEIGHTS))
-
-        # Override the existing FC layer with a new one.
-        self.fc = nn.Linear(2048, 1)
-
-
-def freeze_until(net, param_name):
-    found_name = False
-    for name, params in net.named_parameters():
-        if name == param_name:
-            found_name = True
-        params.requires_grad = found_name
-
-
-IMAGE_SIZE = 224
-BATCH_SIZE = 28
-
-MEAN = [0.485, 0.456, 0.406]
-STD = [0.229, 0.224, 0.225]
-
-unnormalize_transform = Unnormalize(MEAN, STD)
-
-model_save_path = os.path.join(MODELS_DIECTORY, "lowest_loss_model3.pth")
-
-
 def collate_fn(batch):
     batch = list(filter(lambda x: x is not None, batch))
     return torch.utils.data.dataloader.default_collate(batch)
@@ -105,6 +82,7 @@ def create_data_loaders(batch_size, num_workers, non_existing_files=None,
         else:
             train_real_df = pd.read_csv(FACE_XRAY_REAL_DATAFRAME_PATH)
             train_fake_df = pd.read_csv(FACE_XRAY_FAKE_DATAFRAME_PATH)
+            train_df = pd.concat([train_real_df, train_fake_df])
     else:
         train_real_df = pd.read_csv(PAIR_REAL_DATAFRAME)
         train_fake_df = pd.read_csv(PAIR_FAKE_DATAFRAME)
@@ -115,6 +93,7 @@ def create_data_loaders(batch_size, num_workers, non_existing_files=None,
         val_df = pd.read_csv(VALIDATION_DATAFRAME_PATH)
 
     if X_RAY:
+
         train_dataset = XRayDataset(train_df, xray_augmentation_pipeline(),
                                     MASKS_FOLDER)
 
@@ -122,7 +101,9 @@ def create_data_loaders(batch_size, num_workers, non_existing_files=None,
                                   pin_memory=True, collate_fn=collate_fn, drop_last=False)
 
     else:
-        train_dataset = DeepfakeDataset(train_real_df, train_fake_df, augmentation_pipeline(), non_existing_files)
+        train_dataset = DeepfakeDataset(train_real_df, train_fake_df, augmentation_pipeline(),
+                                        augmentation_preprocessing_pipeline(),
+                                        non_existing_files)
 
         train_loader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True, num_workers=num_workers,
                                   pin_memory=True, collate_fn=collate_fn)
@@ -168,7 +149,7 @@ def evaluate(model, minimum_loss):
 
 def train_model(model, criterion, optimizer, scheduler, epochs):
     since = time.time()
-    minimum_loss = 10000000
+    minimum_loss = 0.69
     iteration = 0
 
     for epoch in range(epochs):
@@ -188,6 +169,7 @@ def train_model(model, criterion, optimizer, scheduler, epochs):
             batch_number += 1
             fake_images = pairs['fake'].to(gpu)
             real_images = pairs['real'].to(gpu)
+
             target = probability_distribution.sample((len(fake_images),)).float().to(gpu)
             fake_weight = target.view(-1, 1, 1, 1)
 
@@ -199,7 +181,6 @@ def train_model(model, criterion, optimizer, scheduler, epochs):
             # zero the parameter gradients
             optimizer.zero_grad()
 
-            print("input tensor shape: {}".format(input_tensor.shape))
             outputs = model(input_tensor)
             y_pred = outputs.squeeze()
 
@@ -210,8 +191,8 @@ def train_model(model, criterion, optimizer, scheduler, epochs):
 
             # statistics
             running_training_loss += loss.item() * current_batch_size
-            if batch_number % 500 == 0:
-                log.info("New 500 batches are evaluated")
+            if batch_number % 250 == 0:
+                log.info("New 250 batches are evaluated")
                 log.info("Batch Number: {}".format(batch_number))
                 time_elapsed = time.time() - since
                 log.info('Training complete in {:.0f}m {:.0f}s'.format(
@@ -221,8 +202,6 @@ def train_model(model, criterion, optimizer, scheduler, epochs):
 
             if batch_number >= BATCHES_PER_EPOCH:
                 break
-
-            # scheduler.step()
 
         epoch_loss = running_training_loss / total_examples
         log.info('Training Loss: {:.4f}'.format(epoch_loss))
@@ -238,7 +217,6 @@ def train_model(model, criterion, optimizer, scheduler, epochs):
         if validation_loss < minimum_loss:
             minimum_loss = validation_loss
             log.info("Minimum loss is: {}".format(minimum_loss))
-            # best_model_wts = copy.deepcopy(model.state_dict())
             torch.save(model.state_dict(), model_save_path)
 
     time_elapsed = time.time() - since
@@ -257,6 +235,7 @@ if __name__ == '__main__':
     log.info("Program Started")
     log.info(f"GPU value: {gpu}")
 
+    BATCH_SIZE = 28
     train_loader, validation_loader = create_data_loaders(BATCH_SIZE, 6)
 
     dataset_size = {
@@ -268,24 +247,16 @@ if __name__ == '__main__':
     log.info(f"Size of validation dataloader is {val_size}")
 
     model = DeepfakeClassifier()
-    # model = MyResNeXt()
-
+    model = model.to(gpu)
     log.info("Model is initialised")
 
-    # model = EfficientNet.from_pretrained('efficientnet-b4', weights_path=NOISY_STUDENT_WEIGHTS_FILENAME,
-    #                                      num_classes=1)
-    # freeze parameters so that gradients are not computed
-    # for name, param in model.named_parameters():
-    #     param.requires_grad = False
-    # model._fc = nn.Linear(1280, 1)
-
-    model = model.to(gpu)
+    # uncomment if you want to do transfer learning
     # freeze_until(model, "layer4.0.conv1.weight")
+
     criterion = F.binary_cross_entropy_with_logits
     optimizer_ft = optim.SGD(model.parameters(), lr=0.01, momentum=0.9,
                              weight_decay=1e-4, nesterov=True)
     lr_scheduler = lr_scheduler.StepLR(optimizer_ft, step_size=1, gamma=0.9)
-    # lr_scheduler = lr_scheduler.LambdaLR(optimizer_ft, lambda iteration: (MAX_ITERATIONS - iteration) / MAX_ITERATIONS)
     probability_distribution = distributions.beta.Beta(0.5, 0.5)
 
     log.info("Training Begins")

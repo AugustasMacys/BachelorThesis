@@ -1,11 +1,11 @@
+from collections import defaultdict
 import os
 from glob import glob
 import time
-from collections import defaultdict
+
 
 import cv2
 import insightface
-
 import numpy as np
 from PIL import Image
 from timm.models.efficientnet_blocks import InvertedResidual
@@ -13,21 +13,23 @@ import torch
 from skimage.filters import threshold_yen
 from skimage.exposure import rescale_intensity
 
+
 from src.training.Augmentations import isotropically_resize_image, put_to_center, transformation
 from src.training.TrainModelFaces2D import DeepfakeClassifier
 from src.Utilities import MODELS_DIECTORY, VALIDATION_DIRECTORY
 from src.training.TrainModelFaces3D import DeepfakeClassifier3D_V3, ConvolutionExpander
 
-model_save_path = os.path.join(MODELS_DIECTORY, "lowest_loss_model3.pth")
 
-scores_path = "scores_efficient_net4_3D_new.csv"
-final_path = "final_efficient_net4_3D_new.csv"
+testing_model_path = os.path.join(MODELS_DIECTORY, "lowest_loss_model_new_heavy_augmentations_newer.pth")
+
+scores_path = "efficient_net2D.csv"
+final_path = "final_efficient_net2D.csv"
 
 
 class InferenceLoader:
 
     def __init__(self, video_dir, face_detector,
-                 transform=None, batch_size=5, face_limit=15, dimensions_3D=False):
+                 transform=None, batch_size=15, face_limit=15, dimensions_3D=False):
         self.video_dir = video_dir
         self.test_videos = sorted([y for x in os.walk(self.video_dir) for y in glob(
             os.path.join(x[0], '*.mp4'))])
@@ -72,7 +74,7 @@ class InferenceLoader:
                         # make the image brighter
                         yen_threshold = threshold_yen(frame)
                         frame = rescale_intensity(frame, (0, yen_threshold), (0, 255))
-                        bounding_box, landmarks = face_detector.detect(frame, threshold=0.7, scale=scale)
+                        bounding_box, landmarks = face_detector.detect(frame, threshold=0.55, scale=scale)
                         # if again nothing is found just move on
                         if bounding_box.shape[0] == 0:
                             continue
@@ -120,10 +122,9 @@ class InferenceLoader:
         t0 = time.time()
         batch_count = 0
 
-        for file_name, face in self.iter_one_face():
+        for file_name, transformed_face in self.iter_one_face():
             self.feedback_queue.append(file_name)
-            batch_buf.append(face)
-
+            batch_buf.append(transformed_face)
             if len(batch_buf) == self.batch_size:
                 yield torch.stack(batch_buf)
 
@@ -143,6 +144,7 @@ class InferenceLoader:
 
         for file_name in sorted(accessed):
             outgoing_score = np.array(self.record[file_name])
+
             delta = outgoing_score - 0.5
             sign_array = np.sign(delta)
             pos_array = delta > 0
@@ -165,33 +167,35 @@ class InferenceLoader:
 if __name__ == '__main__':
     gpu = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 
-    model = DeepfakeClassifier3D_V3()
-    SEQUENCE_LENGTH = 5
-
-    for module in model.modules():
-        if isinstance(module, InvertedResidual):
-            if module.exp_ratio != 1.0:
-                expansion_con = module.conv_pw
-                expander = ConvolutionExpander(expansion_con.in_channels, expansion_con.out_channels, SEQUENCE_LENGTH)
-                # 5 dimension tensor and we take third dimension
-                expander.conv.weight.data[:, :, 0, :, :].copy_(expansion_con.weight.data / 3)
-                expander.conv.weight.data[:, :, 1, :, :].copy_(expansion_con.weight.data / 3)
-                expander.conv.weight.data[:, :, 2, :, :].copy_(expansion_con.weight.data / 3)
-                module.conv_pw = expander
-
-    pretrained_weights_path = r"D:\deepfakes\trained_models\3Dnew_model5.pth"
-    model.load_state_dict(torch.load(pretrained_weights_path))
-    model.to(gpu)
-    # uncomment for 2D model
-    # model = DeepfakeClassifier()
+    # 3D model
+    # model = DeepfakeClassifier3D_V3()
+    # SEQUENCE_LENGTH = 5
+    #
+    # for module in model.modules():
+    #     if isinstance(module, InvertedResidual):
+    #         if module.exp_ratio != 1.0:
+    #             expansion_con = module.conv_pw
+    #             expander = ConvolutionExpander(expansion_con.in_channels, expansion_con.out_channels, SEQUENCE_LENGTH)
+    #             # 5 dimension tensor and we take third dimension
+    #             expander.conv.weight.data[:, :, 0, :, :].copy_(expansion_con.weight.data / 3)
+    #             expander.conv.weight.data[:, :, 1, :, :].copy_(expansion_con.weight.data / 3)
+    #             expander.conv.weight.data[:, :, 2, :, :].copy_(expansion_con.weight.data / 3)
+    #             module.conv_pw = expander
+    #
+    # pretrained_weights_path = r"D:\deepfakes\trained_models\3Dnew_model5.pth"
+    # model.load_state_dict(torch.load(pretrained_weights_path))
     # model.to(gpu)
-    # model.load_state_dict(torch.load(model_save_path))
-    # model.eval()
+
+    # uncomment for 2D model
+    model = DeepfakeClassifier()
+    model.to(gpu)
+    model.load_state_dict(torch.load(testing_model_path))
+    model.eval()
 
     validation_directory = VALIDATION_DIRECTORY
     face_detector = insightface.model_zoo.get_model('retinaface_r50_v1')
     face_detector.prepare(ctx_id=0, nms=0.4)
-    loader = InferenceLoader(validation_directory, face_detector, transformation, dimensions_3D=True)
+    loader = InferenceLoader(validation_directory, face_detector, transformation)
 
     for batch in loader:
         batch = batch.cuda(non_blocking=True)

@@ -2,6 +2,8 @@
 import argparse
 import logging
 
+from coviar import get_num_frames
+from coviar import load
 import pandas as pd
 import numpy as np
 import torch.nn.parallel
@@ -9,19 +11,13 @@ import torch.optim
 import torch.utils.data as data
 import torchvision
 
-
-from coviar import get_num_frames
-from coviar import load
-
+from src import ConfigLogger
 from src.training_coviar.CoviarDataset import clip_and_scale
 from src.training_coviar.CoviarModel import Model
 from src.training_coviar.CoviarTransforms import GroupCenterCrop, GroupScale
-
 from src.Utilities import COVIAR_TEST_DATAFRAME_PATH
 
 GOP_SIZE = 12
-
-import config_logger
 
 
 log = logging.getLogger(__name__)
@@ -241,7 +237,7 @@ if __name__ == '__main__':
         output_frame = output_frame.view((-1, args.num_segments) + output_frame.size()[1:])
         output_frame = apply_shift(output_frame)
 
-        mean_outputs = (output_vector + output_residual + output_frame) / 3
+        mean_outputs = output_vector * 0.25 + output_residual * 0.25 + output_frame * 0.5
 
         outputs.append(mean_outputs)
         labels.append(label.item())
@@ -249,5 +245,5 @@ if __name__ == '__main__':
     df = pd.DataFrame(list(zip(outputs, labels)),
                       columns=['Prediction', 'Truth'])
 
-    df.to_csv("prediction_dataframe2.csv", index=False)
+    df.to_csv("prediction_dataframe.csv", index=False)
     assert len(outputs) == 4000
