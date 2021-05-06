@@ -5,7 +5,7 @@ If you have any questions, please email me.
 ## Prerequisites
 
 I add a requirements.txt file to install the libraries.
-To install pytorch-coviar, please follow https://github.com/chaoyuaw/pytorch-coviar/blob/master/GETTING_STARTED.md
+To install pytorch-coviar, please follow https://github.com/chaoyuaw/pytorch-coviar/blob/master/GETTING_STARTED.md<br/>
 To install ffmpeg, please follow https://www.ffmpeg.org/download.html
 
 ## SHA256 File Checksum
@@ -33,7 +33,7 @@ f49efb71e38cdcbb3d4b523566cc244411be7201b627c29ff99afa5e7ab956ca *./trained_mode
 60c905581ab5b6d72c267214b7632221013942c7a2e03079b4d82e7abdee1bed *./trained_models/x_ray_model_B.pth
 005d7b704dc1845ec947a06762a666944e139964aec3acbafff65b141d07b57a *./trained_models/x_ray_model_C.pth
 
-Link to dataframes:  https://bham-my.sharepoint.com/personal/axm1415_student_bham_ac_uk/_layouts/15/guestaccess.aspx?guestaccesstoken=Rn9%2FBPHJIc9vpA0MIMSt5p556s2WaDrfbbROnIrMciY%3D&folderid=2_04e6b110af948472e9d4bca1869bc865b&rev=1&e=dVmk7O
+Link to dataframes:  https://bham-my.sharepoint.com/personal/axm1415_student_bham_ac_uk/_layouts/15/guestaccess.aspx?guestaccesstoken=Rn9%2FBPHJIc9vpA0MIMSt5p556s2WaDrfbbROnIrMciY%3D&folderid=2_04e6b110af948472e9d4bca1869bc865b&rev=1&e=dVmk7O<br/>
 Link to models: https://bham-my.sharepoint.com/personal/axm1415_student_bham_ac_uk/_layouts/15/guestaccess.aspx?guestaccesstoken=eyRARd%2Bv6IDxEn4swejtS9Jof0TaBE3YnSoIXZNKQvY%3D&folderid=2_04d869ff4638440bdb4a7db6793a96c9d&rev=1&e=MOVbOf
 
 ## General
