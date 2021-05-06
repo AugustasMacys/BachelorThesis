@@ -20,7 +20,7 @@ from src.Utilities import MODELS_DIRECTORY, TESTING_DIRECTORY
 from src.training.TrainModelFaces3D import DeepfakeClassifier3D_V3, ConvolutionExpander
 
 
-testing_model_path = os.path.join(MODELS_DIRECTORY, "2DModel.pth")
+testing_model_path = os.path.join(MODELS_DIRECTORY, "2D_Frozen.pth")
 testing_model_path_3D = os.path.join(MODELS_DIRECTORY, "3DModel.pth")
 
 scores_path = "scores_3D_cloud.csv"

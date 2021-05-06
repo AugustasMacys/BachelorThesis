@@ -174,7 +174,6 @@ Examples/
 google cloud scripts_TPU/
 special_models/
 dataframes/
-notebooks/ResultsAnalyser.ipynb
 src/inference/predictions
 src/training_xray/example.png
 src/training_xray/fake_mask.png
