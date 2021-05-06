@@ -14,14 +14,14 @@ from skimage.filters import threshold_yen
 from skimage.exposure import rescale_intensity
 
 
-from src.training.Augmentations import isotropically_resize_image, put_to_center, transformation
+from src.training.Augmentations import isotropically_resize_image, center_face, transformation
 from src.training.TrainModelFaces2D import DeepfakeClassifier, MyResNeXt
-from src.Utilities import MODELS_DIECTORY, VALIDATION_DIRECTORY
+from src.Utilities import MODELS_DIRECTORY, TESTING_DIRECTORY
 from src.training.TrainModelFaces3D import DeepfakeClassifier3D_V3, ConvolutionExpander
 
 
-testing_model_path = os.path.join(MODELS_DIECTORY, "2DModel.pth")
-testing_model_path_3D = os.path.join(MODELS_DIECTORY, "3DModel.pth")
+testing_model_path = os.path.join(MODELS_DIRECTORY, "2DModel.pth")
+testing_model_path_3D = os.path.join(MODELS_DIRECTORY, "3DModel.pth")
 
 scores_path = "scores_3D_cloud.csv"
 final_path = "final_3D_cloud.csv"
@@ -47,7 +47,7 @@ class InferenceLoader:
 
         self.need_resize = dimensions_3D
 
-    def iter_one_face(self):
+    def iter_one_frame(self):
         for file_name in self.test_videos:
 
             capturator = cv2.VideoCapture(file_name)
@@ -98,7 +98,7 @@ class InferenceLoader:
                             max(int(x_min[max_face_idx] - margin_width), 0):int(x_max[max_face_idx] + margin_width)]
 
                     resized_frame = isotropically_resize_image(frame, 224)
-                    resized_frame = put_to_center(resized_frame, 224)
+                    resized_frame = center_face(resized_frame, 224)
                     if self.need_resize:
                         resized_frame = cv2.resize(resized_frame, (192, 224))
                     transformed_image = Image.fromarray(resized_frame[:, :, ::-1])
@@ -123,7 +123,7 @@ class InferenceLoader:
         t0 = time.time()
         batch_count = 0
 
-        for file_name, transformed_face in self.iter_one_face():
+        for file_name, transformed_face in self.iter_one_frame():
             self.feedback_queue.append(file_name)
             batch_buf.append(transformed_face)
             if len(batch_buf) == self.batch_size:
@@ -183,7 +183,7 @@ if __name__ == '__main__':
                 expander.conv.weight.data[:, :, 2, :, :].copy_(expansion_con.weight.data / 3)
                 module.conv_pw = expander
 
-    model.load_state_dict(torch.load(r"D:\deepfakes\trained_models\restored\3Dmodel1.pth"))
+    model.load_state_dict(torch.load(testing_model_path_3D))
     model.to(gpu)
 
     # uncomment for 2D model
@@ -192,10 +192,10 @@ if __name__ == '__main__':
     # model.load_state_dict(torch.load(testing_model_path))
     # model.eval()
 
-    validation_directory = VALIDATION_DIRECTORY
+    testing_directory = TESTING_DIRECTORY
     face_detector = insightface.model_zoo.get_model('retinaface_r50_v1')
     face_detector.prepare(ctx_id=0, nms=0.4)
-    loader = InferenceLoader(validation_directory, face_detector, transformation, dimensions_3D=True)
+    loader = InferenceLoader(testing_directory, face_detector, transformation, dimensions_3D=True)
 
     for batch in loader:
         batch = batch.cuda(non_blocking=True)

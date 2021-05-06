@@ -1,3 +1,4 @@
+from ast import literal_eval
 import logging
 from src import ConfigLogger
 from functools import partial
@@ -24,10 +25,9 @@ import torch.nn as nn
 from torch.utils.data import DataLoader, Dataset
 
 
-from src.Utilities import SEQUENCE_DATAFRAME_PATH, REAL_FOLDER_TO_IDENTIFIERS_PATH, FAKE_FOLDER_TO_IDENTIFIERS_PATH, \
-    SEQUENCE_DATAFRAME_TESTING_PATH, TESTING_FOLDER_TO_IDENTIFIERS_PATH, MODELS_DIECTORY
+from src.Utilities import SEQUENCE_DATAFRAME_PATH,SEQUENCE_DATAFRAME_TESTING_PATH, MODELS_DIRECTORY
 from src.training.Augmentations import augmentation_pipeline_3D, gaussian_noise_transform_3D, \
-    validation_augmentation_pipeline, put_to_center
+    validation_augmentation_pipeline, center_face
 from src.training.TrainModelFaces2D import collate_fn
 from src.Utilities import MEAN, STD
 
@@ -35,11 +35,10 @@ log = logging.getLogger(__name__)
 
 
 SEQUENCE_LENGTH = 5
-MAX_ITERATIONS = 2500000
+MAX_ITERATIONS = 3200000
 MAX_ITERATIONS_BATCH = 20000
 
-model_save_path = os.path.join(MODELS_DIECTORY, "3Dnew_model")
-pretrained_weights_path = os.path.join(MODELS_DIECTORY, "3Dmodel1.pth")
+model_save_path = os.path.join(MODELS_DIRECTORY, "3Dnew_model")
 
 encoder_params_3D = {
     "tf_efficientnet_l2_ns_475": {
@@ -67,12 +66,11 @@ encoder_params_3D = {
 class TestingDataset(Dataset):
     """ Deepfake Validation Dataset """
 
-    def __init__(self, testing_dataframe, augmentations, path_to_identifiers_dictionary,
+    def __init__(self, testing_dataframe, augmentations,
                  image_width=192, image_height=224):
 
         self.image_width = image_width
         self.image_height = image_height
-        self.path_to_identifiers = path_to_identifiers_dictionary
 
         if 'index' in testing_dataframe:
             del testing_dataframe['index']
@@ -85,14 +83,13 @@ class TestingDataset(Dataset):
         folder_name = row["faces_folder"]
         label = row["label"]
 
-        identifiers = self.path_to_identifiers[folder_name]
-        if len(identifiers) > 10:
-            sequence = self.load_sequence(identifiers[4:9], folder_name)
-        elif len(identifiers) >= 5:
-            sequence = self.load_sequence(identifiers[0:5], folder_name)
-        else:
+        identifiers = literal_eval(row["identifiers"])
+        if len(identifiers) < 5:
             log.info(f"Failed to get Sequence: {folder_name}")
             return None
+
+        else:
+            sequence = self.load_sequence(identifiers[4:9], folder_name)
 
         return sequence, label
 
@@ -106,7 +103,7 @@ class TestingDataset(Dataset):
         transformed_image_sequence = []
         for img in sequence_images:
             image_transformed = self.augmentate(image=img)["image"]
-            image_transformed = put_to_center(image_transformed, self.image_height)
+            image_transformed = center_face(image_transformed, self.image_height)
             image_transformed = img_to_tensor(image_transformed, {"mean": MEAN,
                                                                   "std": STD})
             transformed_image_sequence.append(image_transformed)
@@ -124,8 +121,7 @@ class TestingDataset(Dataset):
 class DeepFakeDataset3D(Dataset):
     """Deepfake dataset"""
 
-    def __init__(self, sequence_dataframe, real_dictionary_to_identifiers,
-                 fake_dictionary_to_identifiers, augmentations, image_width=192, image_height=224):
+    def __init__(self, sequence_dataframe, augmentations, image_width=192, image_height=224):
 
         self.image_width = image_width
         self.image_height = image_height
@@ -134,33 +130,23 @@ class DeepFakeDataset3D(Dataset):
 
         self.augmentate = augmentations
         self.df = sequence_dataframe
-        self.real_to_identifiers = real_dictionary_to_identifiers
-        self.fake_to_identifiers = fake_dictionary_to_identifiers
 
     def __getitem__(self, index):
         row = self.df.iloc[index]
         real_image_folder = row["real_image_folder"]
         fake_image_folder = row["fake_image_folder"]
 
-        real_identifiers = self.real_to_identifiers[real_image_folder]
-        prev_state = random.getstate()
-        if len(real_identifiers) > 10:
-            real_sequence = self.load_sequence(real_identifiers[4:9], real_image_folder, prev_state)
-        elif len(real_identifiers) >= 5:
-            real_sequence = self.load_sequence(real_identifiers[0:5], real_image_folder, prev_state)
-        else:
-            log.info(f"Failed to get Real Sequence: {real_image_folder}")
+        real_identifiers = literal_eval(row["real_identifiers"])
+        if len(real_identifiers) < 5:
             return None
+        prev_state = random.getstate()
+        real_sequence = self.load_sequence(real_identifiers, real_image_folder, prev_state)
 
         random.setstate(prev_state)
-        fake_identifiers = self.fake_to_identifiers[fake_image_folder]
-        if len(fake_identifiers) > 10:
-            fake_sequence = self.load_sequence(fake_identifiers[4:9], fake_image_folder, prev_state)
-        elif len(fake_identifiers) >= 5:
-            fake_sequence = self.load_sequence(fake_identifiers[0:5], fake_image_folder, prev_state)
-        else:
-            log.info(f"Failed to get Fake Sequence: {fake_image_folder}")
+        fake_identifiers = literal_eval(row["fake_identifiers"])
+        if len(fake_identifiers) < 5:
             return None
+        fake_sequence = self.load_sequence(fake_identifiers, fake_image_folder, prev_state)
 
         sequence_pair = {
             "real": real_sequence,
@@ -321,15 +307,15 @@ def train_model(model, criterion, optimizer, scheduler, epochs):
             target = probability_distribution.sample((len(real_image_sequence),)).float().to(gpu)
             fake_weight = target.view(-1, 1, 1, 1, 1)
 
-            input_tensor = (1.0 - fake_weight) * real_image_sequence + fake_weight * fake_image_sequence
+            mixed_faces = (1.0 - fake_weight) * real_image_sequence + fake_weight * fake_image_sequence
 
-            current_batch_size = input_tensor.shape[0]
+            current_batch_size = mixed_faces.shape[0]
             total_examples += current_batch_size
 
             # zero the parameter gradients
             optimizer.zero_grad()
 
-            outputs = model(input_tensor.flatten(0, 1))
+            outputs = model(mixed_faces.flatten(0, 1))
             y_pred = outputs.squeeze()
             target = target.repeat_interleave(SEQUENCE_LENGTH)
 
@@ -384,26 +370,17 @@ if __name__ == '__main__':
     log.info(f"GPU value: {gpu}")
 
     sequence_dataframe = pd.read_csv(SEQUENCE_DATAFRAME_PATH)
-    with open(REAL_FOLDER_TO_IDENTIFIERS_PATH, 'rb') as handle:
-        real_folder_to_identifiers = pickle.load(handle)
-    with open(FAKE_FOLDER_TO_IDENTIFIERS_PATH, 'rb') as handle:
-        fake_folder_to_identifiers = pickle.load(handle)
 
     batch_size = 4
     batch_size_testing = 4
     num_workers = 4
 
-    train_dataset = DeepFakeDataset3D(sequence_dataframe, real_folder_to_identifiers, fake_folder_to_identifiers,
-                                      augmentation_pipeline_3D())
+    train_dataset = DeepFakeDataset3D(sequence_dataframe, augmentation_pipeline_3D())
     train_loader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True, num_workers=num_workers,
                               pin_memory=True, collate_fn=collate_fn, drop_last=True)
 
     testing_sequence_dataframe = pd.read_csv(SEQUENCE_DATAFRAME_TESTING_PATH)
-    with open(TESTING_FOLDER_TO_IDENTIFIERS_PATH, 'rb') as handle:
-        testing_folder_to_identifiers = pickle.load(handle)
-
-    testing_dataset = TestingDataset(testing_sequence_dataframe, validation_augmentation_pipeline(),
-                                     testing_folder_to_identifiers)
+    testing_dataset = TestingDataset(testing_sequence_dataframe, validation_augmentation_pipeline(height=224, width=192))
     testing_loader = DataLoader(testing_dataset, batch_size=batch_size_testing, shuffle=False,
                                 num_workers=num_workers, collate_fn=collate_fn, pin_memory=True)
 
@@ -438,5 +415,5 @@ if __name__ == '__main__':
         "val": []
     }
 
-    model = train_model(model, criterion, optimizer_ft, lr_scheduler, 25)
+    model = train_model(model, criterion, optimizer_ft, lr_scheduler, 15)
 

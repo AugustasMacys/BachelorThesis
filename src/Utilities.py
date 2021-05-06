@@ -7,7 +7,6 @@ import pandas as pd
 
 ROOT_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 METADATA_FILENAME = "metadata.json"
-
 SRC_DIR = os.path.join(ROOT_DIR, "src")
 
 DATAFRAMES_DIRECTORY = os.path.join(ROOT_DIR, "dataframes")
@@ -15,12 +14,12 @@ PAIR_DATAFRAMES_UPDATED_DIRECTORY = os.path.join(DATAFRAMES_DIRECTORY, "datafram
 PAIR_REAL_DATAFRAME = os.path.join(PAIR_DATAFRAMES_UPDATED_DIRECTORY, "real_crops.csv")
 PAIR_FAKE_DATAFRAME = os.path.join(PAIR_DATAFRAMES_UPDATED_DIRECTORY, "fake_crops.csv")
 
-MODELS_DIECTORY = os.path.join(ROOT_DIR, "trained_models")
+MODELS_DIRECTORY = os.path.join(ROOT_DIR, "trained_models")
 
 VALIDATION_DATAFRAME_PATH = os.path.join(DATAFRAMES_DIRECTORY, "faces_validation_new.csv")
-VALIDATION_DIRECTORY = os.path.join(ROOT_DIR, "data", "test")
 VALIDATION_FACES_DIRECTORY = os.path.join(ROOT_DIR, "validation_faces")
-VALIDATION_LABELS = os.path.join(VALIDATION_DIRECTORY, "labels.csv")
+TESTING_DIRECTORY = os.path.join(ROOT_DIR, "data", "test")
+TESTING_LABELS = os.path.join(TESTING_DIRECTORY, "labels.csv")
 
 TRAIN_DIRECTORY = os.path.join(ROOT_DIR, "data", "train")
 TRAIN_FAKE_FACES_DIRECTORY = os.path.join(ROOT_DIR, "training_fake_faces")
@@ -37,19 +36,14 @@ PRIVATE_TESTING_DIRECTORY = os.path.join(ROOT_DIR, "aws")
 PRIVATE_TESTING_LABELS_PATH = os.path.join(PRIVATE_TESTING_DIRECTORY, "labels_updated.csv")
 
 SEQUENCE_DATAFRAMES_FOLDER = os.path.join(DATAFRAMES_DIRECTORY, "dataframes_3dcnn")
-SEQUENCE_DATAFRAME_PATH = os.path.join(SEQUENCE_DATAFRAMES_FOLDER, "3dcnn_dataframe.csv")
-SEQUENCE_DATAFRAME_TESTING_PATH = os.path.join(SEQUENCE_DATAFRAMES_FOLDER, "3dtesting_dataframe.csv")
-
-REAL_FOLDER_TO_IDENTIFIERS_PATH = os.path.join(ROOT_DIR, "real_folder_to_identifiers.pkl")
-FAKE_FOLDER_TO_IDENTIFIERS_PATH = os.path.join(ROOT_DIR, "fake_folder_to_identifiers.pkl")
-TESTING_FOLDER_TO_IDENTIFIERS_PATH = os.path.join(ROOT_DIR, "testing_folder_to_identifiers.pkl")
+SEQUENCE_DATAFRAME_PATH = os.path.join(SEQUENCE_DATAFRAMES_FOLDER, "3dcnn_dataframe_final.csv")
+SEQUENCE_DATAFRAME_TESTING_PATH = os.path.join(SEQUENCE_DATAFRAMES_FOLDER, "3dtesting_dataframe_final.csv")
 
 COVIAR_DATAFRAME_FOLDER = os.path.join(DATAFRAMES_DIRECTORY, "coviar_dataframes")
 COVIAR_DATAFRAME_PATH = os.path.join(COVIAR_DATAFRAME_FOLDER, "coviar_dataframe.csv")
 COVIAR_TEST_DATAFRAME_PATH = os.path.join(COVIAR_DATAFRAME_FOLDER, "coviar_test_dataframe.csv")
 
-FACE_XRAY_REAL_DATAFRAME_PATH = os.path.join(PAIR_DATAFRAMES_UPDATED_DIRECTORY, "real_pairs_xray.csv")
-FACE_XRAY_FAKE_DATAFRAME_PATH = os.path.join(PAIR_DATAFRAMES_UPDATED_DIRECTORY, "fake_pairs_xray.csv")
+FACE_XRAY_FULL_DATAFRAME = os.path.join(DATAFRAMES_DIRECTORY, "full_facexray_df.csv")
 
 PREVIEW_MODELS = os.path.join(ROOT_DIR, "preview", "trained_models")
 PREVIEW_DATAFRAMES = os.path.join(ROOT_DIR, "preview", "dataframes")

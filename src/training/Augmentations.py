@@ -29,7 +29,7 @@ transformation = transforms.Compose([
         ])
 
 
-def put_to_center(img, input_size):
+def center_face(img, input_size):
     img = img[:input_size, :input_size]
     image = np.zeros((input_size, input_size, 3), dtype=np.uint8)
     start_w = (input_size - img.shape[1]) // 2
@@ -122,7 +122,7 @@ def xray_augmentation_pipeline():
     )
 
 
-def validation_augmentation_pipeline(height=224, width=192):
+def validation_augmentation_pipeline(height=224, width=224):
     return Compose([
         IsotropicResize(max_side=height, interpolation_down=cv2.INTER_AREA, interpolation_up=cv2.INTER_CUBIC),
         PadIfNeeded(min_height=height, min_width=width, border_mode=cv2.BORDER_CONSTANT),

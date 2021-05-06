@@ -7,9 +7,9 @@ import time
 
 from src.training.Augmentations import augmentation_pipeline, validation_augmentation_pipeline, \
     xray_augmentation_pipeline, augmentation_preprocessing_pipeline
-from src.Utilities import MODELS_DIECTORY, VALIDATION_DATAFRAME_PATH,\
-    PAIR_REAL_DATAFRAME, PAIR_FAKE_DATAFRAME, MASKS_FOLDER, FACE_XRAY_REAL_DATAFRAME_PATH, \
-    FACE_XRAY_FAKE_DATAFRAME_PATH, PREVIEW_TEST, PREVIEW_TRAIN
+from src.Utilities import MODELS_DIRECTORY, VALIDATION_DATAFRAME_PATH, \
+    PAIR_REAL_DATAFRAME, PAIR_FAKE_DATAFRAME, MASKS_FOLDER,\
+    PREVIEW_TEST, PREVIEW_TRAIN, FACE_XRAY_FULL_DATAFRAME
 from src.training.DeepfakeDataset import DeepfakeDataset, ValidationDataset
 from src.training_xray.Dataset_XRay import XRayDataset
 
@@ -26,10 +26,10 @@ import torchvision.models as models
 log = logging.getLogger(__name__)
 
 
-MAX_ITERATIONS = 100000
+MAX_ITERATIONS = 120000
 BATCHES_PER_EPOCH = 6000
 
-model_save_path = os.path.join(MODELS_DIECTORY, "lowest_loss_model_2D.pth")
+model_save_path = os.path.join(MODELS_DIRECTORY, "2DModel.pth")
 
 
 def freeze_until(net, param_name):
@@ -89,27 +89,16 @@ def create_data_loaders(batch_size, num_workers, non_existing_files=None,
         if preview:
             train_df = pd.read_csv(PREVIEW_TRAIN)
         else:
-            train_real_df = pd.read_csv(FACE_XRAY_REAL_DATAFRAME_PATH)
-            train_fake_df = pd.read_csv(FACE_XRAY_FAKE_DATAFRAME_PATH)
-            train_df = pd.concat([train_real_df, train_fake_df])
+            train_df = pd.read_csv(FACE_XRAY_FULL_DATAFRAME)
+
+        train_dataset = XRayDataset(train_df, xray_augmentation_pipeline(),
+                                    MASKS_FOLDER)
+        train_loader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True, num_workers=num_workers,
+                                  pin_memory=True, collate_fn=collate_fn, drop_last=False)
     else:
         train_real_df = pd.read_csv(PAIR_REAL_DATAFRAME)
         train_fake_df = pd.read_csv(PAIR_FAKE_DATAFRAME)
 
-    if preview:
-        val_df = pd.read_csv(PREVIEW_TEST)
-    else:
-        val_df = pd.read_csv(VALIDATION_DATAFRAME_PATH)
-
-    if X_RAY:
-
-        train_dataset = XRayDataset(train_df, xray_augmentation_pipeline(),
-                                    MASKS_FOLDER)
-
-        train_loader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True, num_workers=num_workers,
-                                  pin_memory=True, collate_fn=collate_fn, drop_last=False)
-
-    else:
         train_dataset = DeepfakeDataset(train_real_df, train_fake_df, augmentation_pipeline(),
                                         augmentation_preprocessing_pipeline(),
                                         non_existing_files)
@@ -117,16 +106,19 @@ def create_data_loaders(batch_size, num_workers, non_existing_files=None,
         train_loader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True, num_workers=num_workers,
                                   pin_memory=True, collate_fn=collate_fn)
 
-    if X_RAY:
-        validation_dataset = ValidationDataset(val_df, validation_augmentation_pipeline(height=224, width=224))
+    if preview:
+        val_df = pd.read_csv(PREVIEW_TEST)
+    else:
+        val_df = pd.read_csv(VALIDATION_DATAFRAME_PATH)
 
+    if X_RAY:
+        validation_dataset = ValidationDataset(val_df, validation_augmentation_pipeline())
         validation_loader = DataLoader(validation_dataset, batch_size=batch_size, shuffle=False,
                                        num_workers=num_workers, pin_memory=True)
     else:
         validation_dataset = ValidationDataset(val_df, validation_augmentation_pipeline())
-
         validation_loader = DataLoader(validation_dataset, batch_size=batch_size, shuffle=False,
-                                   num_workers=num_workers, pin_memory=True)
+                                       num_workers=num_workers, pin_memory=True)
 
     return train_loader, validation_loader
 
@@ -179,18 +171,18 @@ def train_model(model, criterion, optimizer, scheduler, epochs):
             fake_images = pairs['fake'].to(gpu)
             real_images = pairs['real'].to(gpu)
 
-            target = probability_distribution.sample((len(fake_images),)).float().to(gpu)
+            target = beta_probability_distribution.sample((len(fake_images),)).float().to(gpu)
             fake_weight = target.view(-1, 1, 1, 1)
 
-            input_tensor = (1.0 - fake_weight) * real_images + fake_weight * fake_images
+            mixed_faces = (1.0 - fake_weight) * real_images + fake_weight * fake_images
 
-            current_batch_size = input_tensor.shape[0]
+            current_batch_size = mixed_faces.shape[0]
             total_examples += current_batch_size
 
             # zero the parameter gradients
             optimizer.zero_grad()
 
-            outputs = model(input_tensor)
+            outputs = model(mixed_faces)
             y_pred = outputs.squeeze()
 
             loss = criterion(y_pred, target)
@@ -245,7 +237,7 @@ if __name__ == '__main__':
     log.info(f"GPU value: {gpu}")
 
     BATCH_SIZE = 28
-    train_loader, validation_loader = create_data_loaders(BATCH_SIZE, 6)
+    train_loader, validation_loader = create_data_loaders(BATCH_SIZE, 4)
 
     dataset_size = {
         "val": len(validation_loader.dataset)
@@ -264,10 +256,10 @@ if __name__ == '__main__':
     # freeze_until(model, "encoder.blocks.5.7.bn3.bias")
 
     criterion = F.binary_cross_entropy_with_logits
-    optimizer_ft = optim.SGD(model.parameters(), lr=0.01, momentum=0.9,
+    optimizer_ft = optim.SGD(model.parameters(), lr=0.001, momentum=0.9,
                              weight_decay=1e-4, nesterov=True)
     lr_scheduler = lr_scheduler.StepLR(optimizer_ft, step_size=1, gamma=0.9)
-    probability_distribution = distributions.beta.Beta(0.5, 0.5)
+    beta_probability_distribution = distributions.beta.Beta(0.5, 0.5)
 
     log.info("Training Begins")
 

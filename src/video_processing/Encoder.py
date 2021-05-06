@@ -5,7 +5,7 @@ import subprocess
 import ntpath
 from tqdm import tqdm
 
-from src.Utilities import TRAIN_DIRECTORY, VALIDATION_DIRECTORY
+from src.Utilities import TRAIN_DIRECTORY, TESTING_DIRECTORY
 
 VIDEO_WIDTH = 192
 VIDEO_HEIGHT = 224
@@ -23,7 +23,7 @@ def encode_mpeg4(video_path):
 
 if __name__ == '__main__':
     train_folder_path = TRAIN_DIRECTORY
-    test_folder_path = VALIDATION_DIRECTORY
+    test_folder_path = TESTING_DIRECTORY
     videos = []
     for subdir, dirs, files in os.walk(test_folder_path):
         for file in files:

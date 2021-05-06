@@ -183,4 +183,5 @@ preview/
 src/inference/scores_efficient_net4_3D.csv
 faceX-rayDataCreation/
 .idea
+src/training_coviar/.idea
 src/inference/Untitled.ipynb

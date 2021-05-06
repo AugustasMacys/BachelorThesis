@@ -6,7 +6,7 @@ import numpy as np
 from PIL import Image
 from torch.utils.data import Dataset
 
-from src.training.Augmentations import gaussian_noise_transform, put_to_center
+from src.training.Augmentations import gaussian_noise_transform, center_face
 from src.Utilities import MEAN, STD
 
 log = logging.getLogger(__name__)
@@ -35,7 +35,7 @@ class ValidationDataset(Dataset):
         img = np.array(img)
 
         transformed_image = self.augmentate(image=img)["image"]
-        transformed_image = put_to_center(transformed_image, self.image_size)
+        transformed_image = center_face(transformed_image, self.image_size)
         transformed_image = img_to_tensor(transformed_image, {"mean": MEAN,
                                                               "std": STD})
 

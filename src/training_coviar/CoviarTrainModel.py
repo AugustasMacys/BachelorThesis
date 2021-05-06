@@ -18,7 +18,7 @@ from src.training_coviar.CoviarTransforms import GroupCenterCrop
 from src.training_coviar.CoviarTransforms import GroupScale
 
 from src import ConfigLogger
-from src.Utilities import COVIAR_DATAFRAME_PATH, COVIAR_TEST_DATAFRAME_PATH, MODELS_DIECTORY
+from src.Utilities import COVIAR_DATAFRAME_PATH, COVIAR_TEST_DATAFRAME_PATH, MODELS_DIRECTORY
 
 log = logging.getLogger(__name__)
 
@@ -154,7 +154,7 @@ if __name__ == '__main__':
     log.info(f"GPU value: {gpu}")
     args = parser.parse_args()
 
-    model_save_path = os.path.join(MODELS_DIECTORY, args.args.representation)
+    model_save_path = os.path.join(MODELS_DIRECTORY, args.args.representation)
 
     probability_distribution = distributions.beta.Beta(0.5, 0.5)
 
@@ -216,7 +216,7 @@ if __name__ == '__main__':
         params += [{'params': value, 'lr': args.lr, 'lr_mult': lr_mult, 'decay_mult': decay_mult}]
 
     model.to(gpu)
-    path_trained_model = os.path.join(MODELS_DIECTORY, "coviar_iframe_model.pth")
+    path_trained_model = os.path.join(MODELS_DIRECTORY, "coviar_iframe_model.pth")
     model.load_state_dict(torch.load(path_trained_model), strict=True)
     log.info("Model prepared")
     optimizer = torch.optim.Adam(

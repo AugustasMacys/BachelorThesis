@@ -11,8 +11,9 @@ import torch
 from torch.optim import lr_scheduler
 
 
-from src.training.TrainModelFaces2D import create_data_loaders
-from src.Utilities import HRNET_CONFIG_FILE, PREVIEW_MODELS, PREVIEW_TEST, VALIDATION_LABELS, VALIDATION_DATAFRAME_PATH
+from src.training.TrainModelFaces2D import create_data_loaders, freeze_until
+from src.Utilities import HRNET_CONFIG_FILE, PREVIEW_MODELS, PREVIEW_TEST, TESTING_LABELS, VALIDATION_DATAFRAME_PATH, \
+    MODELS_DIRECTORY
 from src.training_xray.CNNB import get_seg_model
 from src.training_xray.CNNC import get_nnc
 from src.xray_config import config, update_config
@@ -22,13 +23,13 @@ log = logging.getLogger(__name__)
 
 
 MAX_ITERATIONS = 200000
-BATCHES_PER_EPOCH = 2000
-LOSS_ALPHA = 100
+BATCHES_PER_EPOCH = 2500
+LOSS_ALPHA = 1000
 SCHEDULER_STEP = 50000
 
 
-X_RAY_MODEL_SAVE_PATH_B = os.path.join(PREVIEW_MODELS, "x_ray_model_B")
-X_RAY_MODEL_SAVE_PATH_C = os.path.join(PREVIEW_MODELS, "x_ray_model_C")
+X_RAY_MODEL_SAVE_PATH_B = os.path.join(MODELS_DIRECTORY, "x_ray_model_B")
+X_RAY_MODEL_SAVE_PATH_C = os.path.join(MODELS_DIRECTORY, "x_ray_model_C")
 
 
 def evaluate_and_test_xray(model_nnb, model_nnc, criterion_nnc, minimum_loss, dataloaders,
@@ -37,7 +38,7 @@ def evaluate_and_test_xray(model_nnb, model_nnc, criterion_nnc, minimum_loss, da
     model_nnc.eval()
     running_loss = 0
 
-    # predictions = []
+    predictions = []
 
     for i, (images, labels) in enumerate(dataloaders["val"]):
         with torch.no_grad():
@@ -49,7 +50,7 @@ def evaluate_and_test_xray(model_nnb, model_nnc, criterion_nnc, minimum_loss, da
             probabilities = model_nnc.predict(face_x_rays)
             labels = labels.type_as(classifications)
             face_x_rays = torch.squeeze(face_x_rays)
-            if i == 0 or i == 50 or i == 250 and plotting:
+            if (i == 0 or i == 50 or i == 250) and plotting:
                 fig, axes = plt.subplots(2, 2, figsize=(15, 6))
                 ax1, ax2, ax3, ax4 = axes.flatten()
                 example1 = torch.sigmoid(face_x_rays[0])
@@ -68,15 +69,15 @@ def evaluate_and_test_xray(model_nnb, model_nnc, criterion_nnc, minimum_loss, da
 
             loss_nnc = criterion_nnc(classifications, labels.unsqueeze(1))
             running_loss += loss_nnc.item() * images.size(0)
-            # predictions.append(probabilities.detach().cpu().numpy())
+            predictions.append(probabilities.detach().cpu().numpy())
 
-    # flat_predictions = [item for sublist in predictions for item in sublist]
-    # with open("predictions_new.txt", "wb") as fp:  # Pickling
-    #     pickle.dump(flat_predictions, fp)
-    # ap = average_precision_score(ground_truth, flat_predictions)
-    # roc = roc_auc_score(ground_truth, flat_predictions)
-    # log.info('AP: {:4f}'.format(ap))
-    # log.info('ROC: {:4f}'.format(roc))
+    flat_predictions = [item for sublist in predictions for item in sublist]
+    with open("predictions_xray.txt", "wb") as fp:  # Pickling
+        pickle.dump(flat_predictions, fp)
+    ap = average_precision_score(ground_truth, flat_predictions)
+    roc = roc_auc_score(ground_truth, flat_predictions)
+    log.info('AP: {:4f}'.format(ap))
+    log.info('ROC: {:4f}'.format(roc))
 
     total_loss = running_loss / dataset_size["val"]
     log.info('Validation Loss: {:4f}'.format(total_loss))
@@ -163,18 +164,15 @@ def train_xray(epochs, scheduler, optimizer, modelb, modelc, dataloaders,
         log.info('Training Loss: {:.4f}'.format(epoch_loss))
         history["train"].append(epoch_loss)
 
-        if iteration >= 200:
-            validation_loss = evaluate_and_test_xray(modelb, modelc, criterion_nnc, minimum_loss, dataloaders)
-            history["val"].append(validation_loss)
-            log.info(history)
+        validation_loss = evaluate_and_test_xray(modelb, modelc, criterion_nnc, minimum_loss, dataloaders)
+        history["val"].append(validation_loss)
+        log.info(history)
 
-            if validation_loss < minimum_loss:
-                minimum_loss = validation_loss
-                log.info("Minimum loss is: {}".format(minimum_loss))
-                path_model_b = X_RAY_MODEL_SAVE_PATH_B + str(epoch) + ".pth"
-                path_model_c = X_RAY_MODEL_SAVE_PATH_C + str(epoch) + ".pth"
-                torch.save(modelb.state_dict(), path_model_b)
-                torch.save(modelc.state_dict(), path_model_c)
+        if validation_loss < minimum_loss:
+            minimum_loss = validation_loss
+            log.info("Minimum loss is: {}".format(minimum_loss))
+            torch.save(modelc.state_dict(), X_RAY_MODEL_SAVE_PATH_B)
+            torch.save(modelc.state_dict(), X_RAY_MODEL_SAVE_PATH_C)
 
     time_elapsed = time.time() - since
     log.info('Training complete in {:.0f}m {:.0f}s'.format(time_elapsed // 60, time_elapsed % 60))
@@ -186,6 +184,8 @@ def train_xray(epochs, scheduler, optimizer, modelb, modelc, dataloaders,
 if __name__ == '__main__':
     torch.cuda.empty_cache()
     gpu = torch.device('cuda:0' if torch.cuda.is_available() else 'cpu')
+    log.info("Program Started")
+    log.info(f"GPU value: {gpu}")
 
     update_config(config, HRNET_CONFIG_FILE)
 
@@ -195,16 +195,13 @@ if __name__ == '__main__':
     model_nnb.to(gpu)
     model_nnc.to(gpu)
 
-    # model_nnb.load_state_dict(torch.load(r"D:\deepfakes\trained_models\modelsXray\preview_newest_x_ray_model_B9.pth"))
-    # model_nnc.load_state_dict(torch.load(r"D:\deepfakes\trained_models\modelsXray\preview_newest_x_ray_model_C9.pth"))
-
     batch_size = 40
-    epochs = 1000
+    epochs = 80
 
     log.info("Models are initialised")
 
     train_loader, validation_loader = create_data_loaders(batch_size, num_workers=4, X_RAY=True,
-                                                          preview=True)
+                                                          preview=False)
 
     dataloaders = {
         "train": train_loader,
@@ -221,7 +218,7 @@ if __name__ == '__main__':
 
     optimizer = torch.optim.Adam(list(model_nnb.parameters()) + list(model_nnc.parameters()),
                                  lr=0.0002)
-    lr_scheduler = lr_scheduler.StepLR(optimizer, step_size=1, gamma=0.9999)
+    lr_scheduler = lr_scheduler.StepLR(optimizer, step_size=1, gamma=0.999)
 
     history = {
         "train": [],
@@ -229,8 +226,11 @@ if __name__ == '__main__':
     }
 
     log.info(f"Start Training")
-
     ground_truth = list(pd.read_csv(VALIDATION_DATAFRAME_PATH).label)
 
-    # evaluate_and_test_xray(model_nnb, model_nnc, criterion_nnc, 1, dataloaders)
     train_xray(epochs, lr_scheduler, optimizer, model_nnb, model_nnc, dataloaders, criterion_nnb, criterion_nnc)
+
+    #  Uncomment if just want to test
+    # model_nnb.load_state_dict(torch.load(nnb_trained_path))
+    # model_nnc.load_state_dict(torch.load(nnc_trained_path))
+    # evaluate_and_test_xray(model_nnb, model_nnc, criterion_nnc, 1, dataloaders)

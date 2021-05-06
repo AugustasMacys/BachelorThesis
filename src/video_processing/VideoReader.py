@@ -7,7 +7,7 @@ import ntpath
 from tqdm import tqdm
 
 
-from src.Utilities import VALIDATION_DIRECTORY, VALIDATION_FACES_DIRECTORY
+from src.Utilities import TESTING_DIRECTORY, VALIDATION_FACES_DIRECTORY
 
 
 def video_frame_extractor(video_name, folder):
@@ -62,8 +62,8 @@ def video_frame_extractor(video_name, folder):
 
 
 if __name__ == '__main__':
-    output_folder = VALIDATION_DIRECTORY
-    videos = glob(os.path.join(VALIDATION_DIRECTORY, "*.mp4"))
+    output_folder = TESTING_DIRECTORY
+    videos = glob(os.path.join(TESTING_DIRECTORY, "*.mp4"))
     model = insightface.model_zoo.get_model('retinaface_r50_v1')
     model.prepare(ctx_id=0, nms=0.4)
 

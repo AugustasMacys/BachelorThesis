@@ -10,13 +10,11 @@ from torch.utils.data import Dataset
 from torchvision.transforms import functional as F
 
 
-from src.Utilities import MASK_REAL_PATH
+from src.Utilities import MASK_REAL_PATH, MEAN, STD
 
 
 log = logging.getLogger(__name__)
 
-MEAN = [0.485, 0.456, 0.406]
-STD = [0.229, 0.224, 0.225]
 
 
 class ToTensor(object):
@@ -91,7 +89,7 @@ class XRayDataset(Dataset):
         mask = albumentations_F.resize(mask, height=56, width=56,
                                        interpolation=cv2.INTER_NEAREST)
 
-        # values between 0 and 1
+        # binarise 0 and 1
         if label == 1:
             mask = (mask - mask.min()) / (np.ptp(mask))
 
