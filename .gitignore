@@ -185,3 +185,4 @@ faceX-rayDataCreation/
 .idea
 src/training_coviar/.idea
 src/inference/Untitled.ipynb
+src/xray_fake_data_creation/shape_predictor_68_face_landmarks.dat
