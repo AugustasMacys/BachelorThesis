@@ -1,12 +1,11 @@
-import ntpath
 import os
 import subprocess
+
+
+import ntpath
 from tqdm import tqdm
 
-
-train_folder_path = r"D:/deepfakes/data/train"
-test_folder_path = r"D:/deepfakes/data/test"
-
+from src.Utilities import TRAIN_DIRECTORY, VALIDATION_DIRECTORY
 
 VIDEO_WIDTH = 192
 VIDEO_HEIGHT = 224
@@ -23,6 +22,8 @@ def encode_mpeg4(video_path):
 
 
 if __name__ == '__main__':
+    train_folder_path = TRAIN_DIRECTORY
+    test_folder_path = VALIDATION_DIRECTORY
     videos = []
     for subdir, dirs, files in os.walk(test_folder_path):
         for file in files:

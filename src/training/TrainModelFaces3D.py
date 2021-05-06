@@ -214,7 +214,7 @@ class DeepfakeClassifier3D(nn.Module):
 
 
 class DeepfakeClassifier3D_V2(nn.Module):
-    def __init__(self, dropout_rate=0.1):
+    def __init__(self, dropout_rate=0.2):
         super().__init__()
         self.encoder = encoder_params_3D["tf_efficientnet_b0_ns"]["init_op"]()
         self.avg_pool = AdaptiveAvgPool2d((1, 1))
@@ -230,7 +230,7 @@ class DeepfakeClassifier3D_V2(nn.Module):
 
 
 class DeepfakeClassifier3D_V3(nn.Module):
-    def __init__(self, dropout_rate=0.1):
+    def __init__(self, dropout_rate=0.2):
         super().__init__()
         self.encoder = encoder_params_3D["tf_efficientnet_b4_ns"]["init_op"]()
         self.avg_pool = AdaptiveAvgPool2d((1, 1))
@@ -410,19 +410,16 @@ if __name__ == '__main__':
     log.info(f"Dataloaders Created")
 
     model = DeepfakeClassifier3D_V3()
-
     for module in model.modules():
         if isinstance(module, InvertedResidual):
-            if module.exp_ratio != 1.0:
-                expansion_con = module.conv_pw
-                expander = ConvolutionExpander(expansion_con.in_channels, expansion_con.out_channels, SEQUENCE_LENGTH)
-                # 5 dimension tensor and we take third dimension
-                expander.conv.weight.data[:, :, 0, :, :].copy_(expansion_con.weight.data / 3)
-                expander.conv.weight.data[:, :, 1, :, :].copy_(expansion_con.weight.data / 3)
-                expander.conv.weight.data[:, :, 2, :, :].copy_(expansion_con.weight.data / 3)
-                module.conv_pw = expander
+            expansion_con = module.conv_pw
+            expander = ConvolutionExpander(expansion_con.in_channels, expansion_con.out_channels, SEQUENCE_LENGTH)
+            # 5 dimension tensor and we take third dimension
+            expander.conv.weight.data[:, :, 0, :, :].copy_(expansion_con.weight.data / 3)
+            expander.conv.weight.data[:, :, 1, :, :].copy_(expansion_con.weight.data / 3)
+            expander.conv.weight.data[:, :, 2, :, :].copy_(expansion_con.weight.data / 3)
+            module.conv_pw = expander
 
-    model.load_state_dict(torch.load(pretrained_weights_path))
     model.to(gpu)
 
     log.info("Model is initialised")

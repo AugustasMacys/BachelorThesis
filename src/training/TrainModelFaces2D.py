@@ -21,17 +21,15 @@ from torch.nn import functional as F, AdaptiveAvgPool2d, Dropout, Linear
 from torch.optim import lr_scheduler
 import torch.nn as nn
 import torch.optim as optim
+import torchvision.models as models
 
 log = logging.getLogger(__name__)
 
 
 MAX_ITERATIONS = 100000
-BATCHES_PER_EPOCH = 5000
+BATCHES_PER_EPOCH = 6000
 
-MEAN = [0.485, 0.456, 0.406]
-STD = [0.229, 0.224, 0.225]
-
-model_save_path = os.path.join(MODELS_DIECTORY, "lowest_loss_model_new_heavy_augmentations_newer_newer.pth")
+model_save_path = os.path.join(MODELS_DIECTORY, "lowest_loss_model_2D.pth")
 
 
 def freeze_until(net, param_name):
@@ -51,6 +49,17 @@ encoder_params = {
                            drop_path_rate=0.2)
     }
 }
+
+
+class MyResNeXt(models.resnet.ResNet):
+    def __init__(self):
+        super(MyResNeXt, self).__init__(block=models.resnet.Bottleneck,
+                                        layers=[3, 4, 6, 3],
+                                        groups=32,
+                                        width_per_group=4)
+
+        # Override the existing FC layer with a new one.
+        self.fc = nn.Linear(2048, 1)
 
 
 class DeepfakeClassifier(nn.Module):
@@ -247,11 +256,12 @@ if __name__ == '__main__':
     log.info(f"Size of validation dataloader is {val_size}")
 
     model = DeepfakeClassifier()
+
     model = model.to(gpu)
     log.info("Model is initialised")
 
     # uncomment if you want to do transfer learning
-    # freeze_until(model, "layer4.0.conv1.weight")
+    # freeze_until(model, "encoder.blocks.5.7.bn3.bias")
 
     criterion = F.binary_cross_entropy_with_logits
     optimizer_ft = optim.SGD(model.parameters(), lr=0.01, momentum=0.9,

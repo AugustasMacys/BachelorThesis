@@ -1,4 +1,3 @@
-"""Run testing given a trained model."""
 import argparse
 import logging
 

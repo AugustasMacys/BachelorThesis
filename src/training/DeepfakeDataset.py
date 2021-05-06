@@ -1,10 +1,9 @@
 import logging
 
-import numpy as np
-from PIL import Image
-
 import albumentations.augmentations.functional as F
 from albumentations.pytorch.functional import img_to_tensor
+import numpy as np
+from PIL import Image
 from torch.utils.data import Dataset
 
 from src.training.Augmentations import gaussian_noise_transform, put_to_center

@@ -38,7 +38,9 @@ def put_to_center(img, input_size):
     return image
 
 
-def isotropically_resize_image(img, size, interpolation_down=cv2.INTER_AREA, interpolation_up=cv2.INTER_CUBIC):
+def isotropically_resize_image(img, size,
+                               interpolation_down=cv2.INTER_AREA,
+                               interpolation_up=cv2.INTER_CUBIC):
     h, w = img.shape[:2]
     if max(w, h) == size:
         return img
@@ -50,6 +52,7 @@ def isotropically_resize_image(img, size, interpolation_down=cv2.INTER_AREA, int
         scale = size / h
         w = w * scale
         h = size
+
     interpolation = interpolation_up if scale > 1 else interpolation_down
     resized = cv2.resize(img, (int(w), int(h)), interpolation=interpolation)
     return resized

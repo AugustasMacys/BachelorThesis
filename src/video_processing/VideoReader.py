@@ -1,9 +1,9 @@
-import cv2
-import insightface
-import ntpath
 import os
 from glob import glob
 
+import cv2
+import insightface
+import ntpath
 from tqdm import tqdm
 
 

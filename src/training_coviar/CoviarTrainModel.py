@@ -24,8 +24,6 @@ log = logging.getLogger(__name__)
 
 PRINT_FREQ = 200
 
-model_save_path = os.path.join(MODELS_DIECTORY, "coviar_iframe_model")
-
 
 def train(model, criterion, optimizer, epoch, cur_lr):
     batch_time = AverageMeter()
@@ -155,6 +153,8 @@ if __name__ == '__main__':
     log.info("Program Started")
     log.info(f"GPU value: {gpu}")
     args = parser.parse_args()
+
+    model_save_path = os.path.join(MODELS_DIECTORY, args.args.representation)
 
     probability_distribution = distributions.beta.Beta(0.5, 0.5)
 

@@ -1,15 +1,15 @@
-import cv2
 import os
+
+
+import cv2
+import face_alignment
 import numpy as np
 import pandas as pd
 import pickle
 from PIL import Image
-from tqdm import tqdm
-
-
-import face_alignment
 from scipy.spatial import ConvexHull
 import torch
+from tqdm import tqdm
 
 
 from src.Utilities import MASKS_FOLDER, PAIR_REAL_DATAFRAME
@@ -66,7 +66,6 @@ if __name__ == '__main__':
     torch.cuda.empty_cache()
     fa = face_alignment.FaceAlignment(face_alignment.LandmarksType._2D,
                                       flip_input=False)
-
 
     # According to research paper, we create masks from real images
     image_paths = pd.unique(pd.read_csv(PAIR_REAL_DATAFRAME).image_path)

@@ -354,8 +354,6 @@ class DeepFakeDataset3D(Dataset):
             return None
 
 
-
-
 # Classifier
 
 class DeepfakeClassifier3D(nn.Module):
@@ -531,7 +529,7 @@ if __name__ == '__main__':
     with open(FAKE_FOLDER_TO_IDENTIFIERS_PATH, 'rb') as handle:
         fake_folder_to_identifiers = pickle.load(handle)
 
-    batch_size = 4
+    batch_size = 8
     batch_size_testing = 4
     num_workers = 8
 
@@ -576,7 +574,7 @@ if __name__ == '__main__':
     log.info("Model is initialised")
 
     criterion = F.binary_cross_entropy_with_logits
-    optimizer_ft = optim.SGD(model.parameters(), lr=0.005, momentum=0.9,
+    optimizer_ft = optim.SGD(model.parameters(), lr=0.001, momentum=0.9,
                              weight_decay=1e-4, nesterov=True)
     lr_scheduler = lr_scheduler.StepLR(optimizer_ft, step_size=1, gamma=0.8)
 

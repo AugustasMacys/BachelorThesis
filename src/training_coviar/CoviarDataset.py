@@ -157,7 +157,6 @@ class CoviarDataSet(data.Dataset):
             real_frames.append(img_real)
             fake_frames.append(img_fake)
 
-        # Comeback here
         prev_state = random.getstate()
         real_frames = self._transform(real_frames)
 
@@ -182,8 +181,6 @@ class CoviarDataSet(data.Dataset):
         elif self._representation == 'mv':
             real_input = (real_input - 0.5)
             fake_input = (fake_input - 0.5)
-
-        # log.info("pair returned successfully")
 
         pairs = {
             "fake": fake_input,

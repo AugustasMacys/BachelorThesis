@@ -1,11 +1,11 @@
-import cv2
-from PIL import Image
 import logging
-import numpy as np
-import torch
 
 
 import albumentations.augmentations.functional as albumentations_F
+import cv2
+import numpy as np
+from PIL import Image
+import torch
 from torch.utils.data import Dataset
 from torchvision.transforms import functional as F
 
