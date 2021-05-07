@@ -1,6 +1,7 @@
 # Deepfakes Detection on the DeepFake Detection Challenge Dataset
 
-If you have any questions, please email me.
+If you have any questions, please email me.<br/>
+Dissertation word count is : 8900 words
 
 ## Prerequisites
 
