@@ -40,6 +40,7 @@ Link to models: https://bham-my.sharepoint.com/personal/axm1415_student_bham_ac_
 ## General
 
 The code was splitted between notebooks and actual .py files. Notebooks were used to implement specific ideas for small amount of images to test if the ideas work. .py files on another hand, were used to make it work with the full dataset.
+The standard in industry is not to include the notebook files. However, we include some of them as examples.
 
 ## Download the data
 We do not include the Dataset because it is very big. Without the data extracted the below instructions will not work except for "Combination Results"
